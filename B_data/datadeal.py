@@ -164,7 +164,7 @@ def plan_id_deal(excel_datas, planid_data, index, data_list):
 if __name__ == '__main__':
     train_ratio = [0.8, 0.2]
     # 获取数据
-    excel_path = r"./gcndata/"
+    excel_path = r"./datasets/knowgraph/"
     # list 为文件名，0,1,2,3,4,5,6,
     excel_datas = read_csv(excel_path, [0, 1, 2, 3, 4, 5, 6])
     # id_enterprise 对应信息字典写入 json

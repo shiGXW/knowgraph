@@ -1,5 +1,5 @@
 from helper import *
-from model.message_passing import MessagePassing
+from C_models.message_passing import MessagePassing
 
 
 class CompGCNConv(MessagePassing):

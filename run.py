@@ -1,9 +1,9 @@
 import os
 
 from helper import *
-from data_loader import *
+from B_data.data_loader import *
 # sys.path.append('./')
-from model.models import *
+from C_models.models import *
 import pandas as pd
 
 
@@ -34,7 +34,7 @@ class Runner(object):
 
         ent_set, rel_set = OrderedSet(), OrderedSet()
         for split in ['train', 'test', 'valid']:
-            for line in open('./B_data/{}/{}.txt'.format(self.p.dataset, split)):
+            for line in open(self.p.data_dir + '{}/{}.txt'.format(self.p.dataset, split)):
                 sub, rel, obj = map(str.lower, line.strip().split('\t'))
                 ent_set.add(sub)
                 rel_set.add(rel)
@@ -55,7 +55,7 @@ class Runner(object):
         sr2o = ddict(set)
 
         for split in ['train', 'test', 'valid']:
-            for line in open('./B_data/{}/{}.txt'.format(self.p.dataset, split)):
+            for line in open(self.p.data_dir + '{}/{}.txt'.format(self.p.dataset, split)):
                 sub, rel, obj = map(str.lower, line.strip().split('\t'))
                 sub, rel, obj = self.ent2id[sub], self.rel2id[rel], self.ent2id[obj]
                 self.data[split].append((sub, rel, obj))
@@ -533,9 +533,10 @@ if __name__ == '__main__':
                         help='ConvE: Number of filters in convolution')
     parser.add_argument('-ker_sz', dest='ker_sz', default=7, type=int, help='ConvE: Kernel size to use')
 
-    parser.add_argument('-logdir', dest='log_dir', default='./log/', help='Log directory')
-    parser.add_argument('-csvdir', dest='csv_dir', default='./log/csv/', help='Log directory')
-    parser.add_argument('-config', dest='config_dir', default='./config/', help='Config directory')
+    parser.add_argument('-logdir', dest='log_dir', default='./D_export/log/', help='Log directory')
+    parser.add_argument('-csvdir', dest='csv_dir', default='./D_export/log/csv/', help='csv directory')
+    parser.add_argument('-configdir', dest='config_dir', default='./A_config/', help='Config directory')
+    parser.add_argument('-datadir', dest='data_dir', default='./B_data/datasets/', help='data directory')
     args = parser.parse_args()
 
     if not args.restore: args.name = args.name + '_' + time.strftime('%d_%m_%Y') + '_' + time.strftime('%H:%M:%S')

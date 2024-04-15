@@ -1,6 +1,6 @@
 from helper import *
-from model.compgcn_conv import CompGCNConv
-from model.compgcn_conv_basis import CompGCNConvBasis
+from C_models.compgcn_conv import CompGCNConv
+from C_models.compgcn_conv_basis import CompGCNConvBasis
 
 
 class BaseModel(torch.nn.Module):
