@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import json
 import os
 import re
+import json
 import pandas as pd
 
 
@@ -95,9 +95,11 @@ def dealRawAcc(excel_data):
             regex_pattern = '|'.join(map(re.escape, delimiters))
             rawacc_list = re.split(regex_pattern, excel_data[list(excel_data.keys())[1]][item].strip().replace(" ", ""))
             for rawacc in rawacc_list:
-                if rawacc != "":
+                if rawacc:
                     enters_ex.append(excel_data[list(excel_data.keys())[0]][item])
                     rawaccs_ex.append(rawacc)
+                else:
+                    data_except.append(excel_data[list(excel_data.keys())[1]][item])
         except:
             data_except.append(excel_data[list(excel_data.keys())[1]][item])
             continue
@@ -116,21 +118,26 @@ def write_txt(excel_datas, data_list, flag, indexs):
         # [0, 1, 2]，list 为读取到的数据在 excel_datas 中的位置
         if index in [0, 1, 2]:
             for item in data_list:
-                data_triples["sub"].append(excel_datas[index][0][list(excel_datas[index][0].keys())[0]][item])
-                data_triples["rel"].append(rel_list[index])
-                data_triples["obj"].append(excel_datas[index][0][list(excel_datas[index][0].keys())[1]][item])
+                if isinstance(excel_datas[index][0][list(excel_datas[index][0].keys())[1]][item], str):
+                    data_triples["sub"].append(excel_datas[index][0][list(excel_datas[index][0].keys())[0]][item])
+                    data_triples["rel"].append(rel_list[index])
+                    data_triples["obj"].append(
+                        excel_datas[index][0][list(excel_datas[index][0].keys())[1]][item].replace("\t", "").replace("?", "")
+                    )
         else:
             planid_data = dealRawAcc(excel_datas[index][0])
             plan_deal_sub_list, plan_deal_obj_list = plan_id_deal(excel_datas, planid_data, 3, data_list)
             for item in range(len(plan_deal_sub_list)):
-                if data_triples["sub"] and data_triples["rel"] and data_triples["obj"]:
-                    data_triples["sub"].append(plan_deal_sub_list[item])
-                    data_triples["rel"].append(rel_list[index])
-                    data_triples["obj"].append(plan_deal_obj_list[item])
+                # if data_triples["sub"] and data_triples["rel"] and data_triples["obj"]:
+                data_triples["sub"].append(plan_deal_sub_list[item])
+                data_triples["rel"].append(rel_list[index])
+                data_triples["obj"].append(
+                    plan_deal_obj_list[item].replace("\t", "").replace("?", "")
+                )
 
     # 导出到文本文件
     pd.DataFrame({0: data_triples["sub"], 1: data_triples["rel"], 2: data_triples["obj"]}, dtype=str).to_csv(
-        f'./gcndata/{flag}.txt', sep='\t', index=False, header=False
+        excel_path + f'/{flag}.txt', sep='\t', index=False, header=False
     )
 
 

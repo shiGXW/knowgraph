@@ -14,10 +14,13 @@ $ git pull origin master
 $ git push origin master
 
 # python
+conda activate pytorch
 cd /home/GXW/code/pytorch/knowgraph
 cd /home/GXW/code/pytorch/knowgraph/D_export/log
 nohup python -u ./run.py > /dev/null 2>&1 &
-kill -9 $(pgrep -f './run.py')
+nohup python -u ./run-notest.py > /dev/null 2>&1 &
+kill -9 $(pgrep -f './run-notest.py')
+cd /home/GXW/code/pytorch/knowgraph/B_data
 nohup python -u datadeal.py >> ./run.log 2>&1 &
 kill -9 $(pgrep -f 'datadeal.py')
 ```
