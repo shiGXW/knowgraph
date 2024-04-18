@@ -6,7 +6,7 @@
 常用命令
 ```
 # git
-$ cd e:/code/Git/knowgraph 
+$ cd e:/code/Git/knowgraph
 $ git add .
 $ git status
 $ git commit -m "change"
@@ -17,10 +17,17 @@ $ git push origin master
 conda activate pytorch
 cd /home/GXW/code/pytorch/knowgraph
 cd /home/GXW/code/pytorch/knowgraph/D_export/log
-nohup python -u ./run.py > /dev/null 2>&1 &
+cd /home/GXW/code/pytorch/knowgraph/B_data
+
+# 不使用测试集
 nohup python -u ./run-notest.py > /dev/null 2>&1 &
 kill -9 $(pgrep -f './run-notest.py')
-cd /home/GXW/code/pytorch/knowgraph/B_data
+nohup python -u datadeal-notest.py >> ./run-new.log 2>&1 &
+kill -9 $(pgrep -f 'datadeal-notest.py')
+
+# 使用测试集
+nohup python -u ./run.py > /dev/null 2>&1 &
+kill -9 $(pgrep -f './run.py')
 nohup python -u datadeal.py >> ./run.log 2>&1 &
 kill -9 $(pgrep -f 'datadeal.py')
 ```

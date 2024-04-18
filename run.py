@@ -270,7 +270,13 @@ class Runner(object):
         self.model.load_state_dict(state_dict)
         self.optimizer.load_state_dict(state['optimizer'])
 
-    def save_csv(self, sub_total, rel_total, obj_total, target_pred_total, label_total, results):
+    def save_csv(self, sub_total, rel_total, obj_total, target_pred_total, label_total, results, rel_flag):
+        sub_total = np.array(sub_total, dtype=np.int32)
+        rel_total = np.array(rel_total, dtype=np.int32)
+        obj_total = np.array(obj_total, dtype=np.int32)
+        label_total = np.array(label_total, dtype=np.int32)
+        rel_index = np.where(rel_total == rel_flag)
+        rel_list = ["industry", "wasteHW", "waste", "pianid", "material", "product"]
         # sub_total, rel_total, obj_total, label_total
         # 头，关系，尾，头与关系对应的全部尾的索引(第二位为 entid )
         # sub_total = [ 5962, 98, 1246, 5063, 6696, ... ]
@@ -278,49 +284,61 @@ class Runner(object):
         # obj_total = [ 2292, 1276, 3175, 3010, 339, ... ]
         # target_pred_total = [ 0.00005, 0.00128, 0.72369, 0.16455, 0.00001, ... ]
         # label_total = [ [ 0, 27 ], [ 0, 32 ], [ 0, 75 ], [ 0, 92 ], [ 0, 119 ], ... ]
-        # 预测阈值
-        accuracy_th = self.p.accuracy_th
         export_info = {
-            "enter": [],
-            "enterid": [],
-            "pred_industry": [],
-            "true_industry": [],
+            "enter": OrderedSet(),
+            "enterid": OrderedSet(),
+            "pred_" + rel_list[rel_flag]: [],
+            "true_" + rel_list[rel_flag]: [],
+            rel_list[rel_flag] + "_accuracy": [],
         }
-        # id 对应的实体值
-        id2enterid = dict(zip(self.ent2id.values(), self.ent2id.keys()))
         # id_labels_total = { "0": [ 27, 32, 75, 92, 119 ], ... }
         # 获取 enterid 对应的企业名
-        with open(os.path.join('./B_data/{}/'.format(self.p.dataset), 'id_enterprise_dict.json'), 'r') as json_file:
+        with open(os.path.join(self.p.data_dir + self.p.dataset, 'id_enterprise_dict.json'), 'r') as json_file:
             enterid2enterprise_dict = json.loads(str(json_file.read()))
-        # 处理 pred_industry
-        pred_industry_total = {}
-        for item in obj_total:
-            pred_industry_total[sub_total[item]] = pred_industry_total[sub_total[item]] + [id2enterid[item]]
-        # 处理 true_industry
-        true_industry_total = {}
-        for xyindex in label_total:
-            true_industry_total[id2enterid[int(xyindex[0])]] = \
-                true_industry_total[id2enterid[int(xyindex[0])]] + [id2enterid[int(xyindex[1])]]
 
-        for item in range(self.p.batch_size):
-            if rel_total[item] == 0 and target_pred_total[item] >= accuracy_th:
-                export_info["enter"].append(enterid2enterprise_dict[id2enterid[sub_total[item]]])
-                export_info["enterid"].append(id2enterid[sub_total[item]])
-                export_info["pred_industry"].append('、'.join(enterid2enterprise_dict[item]))
-                export_info["true_industry"].append('、'.join(true_industry_total[id2enterid[sub_total[item]]]))
+        pred_industry_total = {}
+        true_industry_total = {}
+        for item in rel_index[0]:
+            # 写入 Set
+            export_info["enter"].append(enterid2enterprise_dict[self.id2ent[sub_total[item]]])
+            export_info["enterid"].append(self.id2ent[sub_total[item]])
+            # 处理 pred_industry
+            # 预测阈值
+            if target_pred_total[item] >= self.p.accuracy_th:
+                if sub_total[item] in pred_industry_total.keys():
+                    pred_industry_total[str(sub_total[item])].append(self.id2ent[obj_total[item]])
+                else:
+                    pred_industry_total[str(sub_total[item])] = [self.id2ent[obj_total[item]]]
+        # 处理 true_industry
+        for item in range(len(label_total)):
+            sr2o_rel_flag = self.sr2o_all.get((label_total[item][0], rel_flag), [])
+            if label_total[item][1] in sr2o_rel_flag:
+                if self.id2ent[int(label_total[item][0])] in true_industry_total.keys():
+                    true_industry_total[self.id2ent[int(label_total[item][0])]].append(self.id2ent[int(label_total[item][1])])
+                else:
+                    true_industry_total[self.id2ent[int(label_total[item][0])]] = [self.id2ent[int(label_total[item][1])]]
+
+        for item in export_info["enterid"]:
+            true_list = list(set(true_industry_total.get(item, [])))
+            pred_list = list(set(pred_industry_total.get(item, [])))
+            export_info["true_" + rel_list[rel_flag]].append('、'.join(true_list))
+            export_info["pred_" + rel_list[rel_flag]].append('、'.join(pred_list))
+            export_info[rel_list[rel_flag] + "_accuracy"].append(
+                len(set(true_list) & set(pred_list)) / (len(true_list) if len(true_list) > len(pred_list) else len(pred_list))
+            )
         # pred_targets = torch.where(pred_targets, label, -1).to("cpu")
         # true_targets = label.to("cpu")
         # # 计算准确率
         # torch.eq(pred_targets, true_targets).sum().float().item()
         # 导出到 csv 文件
-        time_flag = '_' + results["mrr"] + '_' + time.strftime('%d_%m_%Y') + '_' + time.strftime('%H:%M:%S')
+        time_flag = time.strftime('%Y_%m_%d') + '_' + time.strftime('%H_%M_%S') + '_' + str(results['mrr'])
         pd.DataFrame({
-            0: export_info["enter"],
-            1: export_info["enterid"],
+            0: list(export_info["enter"]),
+            1: list(export_info["enterid"]),
             2: export_info["pred_industry"],
             3: export_info["true_industry"]
         }).to_csv(
-            f'{args.csv_dir}/{time_flag}.csv', sep='\t', index=False
+            f'{args.csv_dir}/{time_flag}.csv', sep='\t', index=False, header=False
         )
 
     def evaluate(self, split, epoch):
@@ -380,17 +398,22 @@ class Runner(object):
             for step, batch in enumerate(train_iter):
                 sub, rel, obj, label = self.read_batch(batch, split)
                 pred = self.model.forward(sub, rel)
-                # 存入三元组
-                sub_total = np.concatenate((sub_total, sub.cpu()), axis=0)
-                rel_total = np.concatenate((rel_total, rel.cpu()), axis=0)
-                obj_total = np.concatenate((obj_total, obj.cpu()), axis=0)
-                # 找出tensor中非零的元素的索引，存入label_total
-                label_nonzero = label.nonzero().cpu()
-                label_total = np.concatenate((label_total, label_nonzero), axis=0)
                 b_range = torch.arange(pred.size()[0], device=self.device)
                 # 预测概率——对应于每一个 obj
                 target_pred = pred[b_range, obj]
-                target_pred_total = np.concatenate((target_pred_total, target_pred.cpu()), axis=0)
+                if mode == 'tail_batch':
+                    # 存入三元组
+                    sub_total = np.concatenate((sub_total, sub.cpu()), axis=0)
+                    rel_total = np.concatenate((rel_total, rel.cpu()), axis=0)
+                    obj_total = np.concatenate((obj_total, obj.cpu()), axis=0)
+                    # 找出tensor中非零的元素的索引，存入label_total
+                    label_nonzero = label.nonzero().cpu()
+                    label_nonzero = np.array(label_nonzero, dtype=np.int32)
+                    for index in range(label_nonzero.shape[0]):
+                        label_nonzero[index, 0] = sub[label_nonzero[index, 0]]
+                        label_nonzero[index, 1] = label_nonzero[index, 1]
+                    label_total = np.concatenate((label_total, label_nonzero), axis=0)
+                    target_pred_total = np.concatenate((target_pred_total, target_pred.cpu()), axis=0)
                 pred = torch.where(label.byte(), -torch.ones_like(pred) * 10000000, pred)
                 pred[b_range, obj] = target_pred
                 ranks = 1 + torch.argsort(
@@ -405,8 +428,9 @@ class Runner(object):
                     results['hits@{}'.format(k + 1)] = torch.numel(ranks[ranks <= (k + 1)]) + results.get('hits@{}'.format(k + 1), 0.0)
 
                 if step % 100 == 0:
-                    self.logger.info('[{}, {} Step {}]\t{}'.format(split.title(), mode.title(), step, self.p.name))
-        self.save_csv(sub_total, rel_total, obj_total, target_pred_total, label_total, results)
+                    self.logger.info('[{}, {} Step {}]\t{}'.format(split.title(), mode.title(), step, results['mrr']))
+        if mode == 'tail_batch':
+            self.save_csv(sub_total, rel_total, obj_total, target_pred_total, label_total, results, 0)
         return results
 
     def run_epoch(self, epoch, val_mrr=0):
@@ -475,7 +499,7 @@ class Runner(object):
                 kill_cnt = 0
             else:
                 kill_cnt += 1
-                if kill_cnt % 10 == 0 and self.p.gamma > 5:
+                if kill_cnt % 10 == 0 and self.p.gamma > 50:
                     self.p.gamma -= 5
                     self.logger.info('Gamma decay on saturation, updated value of gamma: {}'.format(self.p.gamma))
                 if kill_cnt > 25:
@@ -484,11 +508,9 @@ class Runner(object):
 
             self.logger.info \
                 ('[Epoch {}]: Training Loss: {:.5}, Valid MRR: {:.5}\n\n'.format(epoch, train_loss, self.best_val_mrr))
-
         self.logger.info('Loading best model, Evaluating on Test data')
         self.load_model(save_path)
         test_results = self.evaluate('test', epoch)
-
 
 if __name__ == '__main__':
     # /home/GXW/code/pytorch/CompGCN-master
@@ -508,9 +530,9 @@ if __name__ == '__main__':
     parser.add_argument('-l2', type=float, default=0.0, help='L2 Regularization for Optimizer')
     parser.add_argument('-lr', type=float, default=0.001, help='Starting Learning Rate')
     parser.add_argument('-lbl_smooth', dest='lbl_smooth', type=float, default=0.1, help='Label Smoothing')
-    parser.add_argument('-num_workers', type=int, default=2, help='Number of processes to construct batches')
+    parser.add_argument('-num_workers', type=int, default=0, help='Number of processes to construct batches')
     parser.add_argument('-seed', dest='seed', default=41504, type=int, help='Seed for randomization')
-    parser.add_argument('-accuracy_th', type=float, default=0.9, help='预测阈值')
+    parser.add_argument('-accuracy_th', type=float, default=0.5, help='预测阈值')
 
     parser.add_argument('-restore', dest='restore', action='store_true', help='Restore from the previously saved model')
     parser.add_argument('-bias', dest='bias', action='store_true', help='Whether to use bias in the model')
@@ -537,17 +559,17 @@ if __name__ == '__main__':
 
     parser.add_argument('-logdir', dest='log_dir', default='./D_export/log/', help='Log directory')
     parser.add_argument('-checkpointsdir', dest='checkpoints_dir', default='./D_export/checkpoints/', help='Log directory')
-    parser.add_argument('-csvdir', dest='csv_dir', default='./D_export/log/csv/', help='csv directory')
+    parser.add_argument('-csvdir', dest='csv_dir', default='./D_export/log/', help='csv directory')
     parser.add_argument('-configdir', dest='config_dir', default='./A_config/', help='Config directory')
     parser.add_argument('-datadir', dest='data_dir', default='./B_data/datasets/', help='data directory')
     args = parser.parse_args()
 
-    if not args.restore: args.name = args.name + '_' + time.strftime('%d_%m_%Y') + '_' + time.strftime('%H:%M:%S')
+    if not args.restore: args.name = args.name + '_' + time.strftime('%Y_%m_%d') + '_' + time.strftime('%H_%M_%S')
 
     set_gpu(args.gpu)
 
     # 创建 csv 存储位置
-    args.csv_dir = args.csv_dir + args.name
+    args.csv_dir = args.csv_dir + args.name + "_csv"
     os.mkdir(args.csv_dir)
 
     # 固定所有的随机种子

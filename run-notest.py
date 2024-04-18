@@ -274,6 +274,7 @@ class Runner(object):
         obj_total = np.array(obj_total, dtype=np.int32)
         label_total = np.array(label_total, dtype=np.int32)
         rel_index = np.where(rel_total == rel_flag)
+        rel_list = ["industry", "wasteHW", "waste", "pianid", "material", "product"]
         # sub_total, rel_total, obj_total, label_total
         # 头，关系，尾，头与关系对应的全部尾的索引(第二位为 entid )
         # sub_total = [ 5962, 98, 1246, 5063, 6696, ... ]
@@ -281,13 +282,12 @@ class Runner(object):
         # obj_total = [ 2292, 1276, 3175, 3010, 339, ... ]
         # target_pred_total = [ 0.00005, 0.00128, 0.72369, 0.16455, 0.00001, ... ]
         # label_total = [ [ 0, 27 ], [ 0, 32 ], [ 0, 75 ], [ 0, 92 ], [ 0, 119 ], ... ]
-        # 预测阈值
-        accuracy_th = self.p.accuracy_th
         export_info = {
             "enter": OrderedSet(),
             "enterid": OrderedSet(),
-            "pred_industry": [],
-            "true_industry": [],
+            "pred_" + rel_list[rel_flag]: [],
+            "true_" + rel_list[rel_flag]: [],
+            rel_list[rel_flag] + "_accuracy": [],
         }
         # id_labels_total = { "0": [ 27, 32, 75, 92, 119 ], ... }
         # 获取 enterid 对应的企业名
@@ -301,7 +301,8 @@ class Runner(object):
             export_info["enter"].append(enterid2enterprise_dict[self.id2ent[sub_total[item]]])
             export_info["enterid"].append(self.id2ent[sub_total[item]])
             # 处理 pred_industry
-            if target_pred_total[item] >= accuracy_th:
+            # 预测阈值
+            if target_pred_total[item] >= self.p.accuracy_th:
                 if sub_total[item] in pred_industry_total.keys():
                     pred_industry_total[str(sub_total[item])].append(self.id2ent[obj_total[item]])
                 else:
@@ -316,14 +317,19 @@ class Runner(object):
                     true_industry_total[self.id2ent[int(label_total[item][0])]] = [self.id2ent[int(label_total[item][1])]]
 
         for item in export_info["enterid"]:
-            export_info["true_industry"].append('、'.join(true_industry_total.get(item, "")))
-            export_info["pred_industry"].append('、'.join(pred_industry_total.get(item, "")))
+            true_list = list(set(true_industry_total.get(item, [])))
+            pred_list = list(set(pred_industry_total.get(item, [])))
+            export_info["true_" + rel_list[rel_flag]].append('、'.join(true_list))
+            export_info["pred_" + rel_list[rel_flag]].append('、'.join(pred_list))
+            export_info[rel_list[rel_flag] + "_accuracy"].append(
+                len(set(true_list) & set(pred_list)) / (len(true_list) if len(true_list) > len(pred_list) else len(pred_list))
+            )
         # pred_targets = torch.where(pred_targets, label, -1).to("cpu")
         # true_targets = label.to("cpu")
         # # 计算准确率
         # torch.eq(pred_targets, true_targets).sum().float().item()
         # 导出到 csv 文件
-        time_flag = str(results["mrr"]) + '_' + time.strftime('%Y_%m_%d') + '_' + time.strftime('%H:%M:%S')
+        time_flag = time.strftime('%Y_%m_%d') + '_' + time.strftime('%H_%M_%S') + '_' + str(results['mrr'])
         pd.DataFrame({
             0: list(export_info["enter"]),
             1: list(export_info["enterid"]),
@@ -420,7 +426,7 @@ class Runner(object):
                     results['hits@{}'.format(k + 1)] = torch.numel(ranks[ranks <= (k + 1)]) + results.get('hits@{}'.format(k + 1), 0.0)
 
                 if step % 100 == 0:
-                    self.logger.info('[{}, {} Step {}]\t{}'.format(split.title(), mode.title(), step, self.p.name))
+                    self.logger.info('[{}, {} Step {}]\t{}'.format(split.title(), mode.title(), step, results['mrr']))
         if mode == 'tail_batch':
             self.save_csv(sub_total, rel_total, obj_total, target_pred_total, label_total, results, 0)
         return results
@@ -491,7 +497,7 @@ class Runner(object):
                 kill_cnt = 0
             else:
                 kill_cnt += 1
-                if kill_cnt % 10 == 0 and self.p.gamma > 5:
+                if kill_cnt % 10 == 0 and self.p.gamma > 50:
                     self.p.gamma -= 5
                     self.logger.info('Gamma decay on saturation, updated value of gamma: {}'.format(self.p.gamma))
                 if kill_cnt > 25:
@@ -522,7 +528,7 @@ if __name__ == '__main__':
     parser.add_argument('-lbl_smooth', dest='lbl_smooth', type=float, default=0.1, help='Label Smoothing')
     parser.add_argument('-num_workers', type=int, default=0, help='Number of processes to construct batches')
     parser.add_argument('-seed', dest='seed', default=41504, type=int, help='Seed for randomization')
-    parser.add_argument('-accuracy_th', type=float, default=0.9, help='预测阈值')
+    parser.add_argument('-accuracy_th', type=float, default=0.5, help='预测阈值')
 
     parser.add_argument('-restore', dest='restore', action='store_true', help='Restore from the previously saved model')
     parser.add_argument('-bias', dest='bias', action='store_true', help='Whether to use bias in the model')
@@ -549,17 +555,17 @@ if __name__ == '__main__':
 
     parser.add_argument('-logdir', dest='log_dir', default='./D_export/log/', help='Log directory')
     parser.add_argument('-checkpointsdir', dest='checkpoints_dir', default='./D_export/checkpoints/', help='Log directory')
-    parser.add_argument('-csvdir', dest='csv_dir', default='./D_export/log/csv/', help='csv directory')
+    parser.add_argument('-csvdir', dest='csv_dir', default='./D_export/log/', help='csv directory')
     parser.add_argument('-configdir', dest='config_dir', default='./A_config/', help='Config directory')
     parser.add_argument('-datadir', dest='data_dir', default='./B_data/datasets/', help='data directory')
     args = parser.parse_args()
 
-    if not args.restore: args.name = args.name + '_' + time.strftime('%Y_%m_%d') + '_' + time.strftime('%H:%M:%S')
+    if not args.restore: args.name = args.name + '_' + time.strftime('%Y_%m_%d') + '_' + time.strftime('%H_%M_%S')
 
     set_gpu(args.gpu)
 
     # 创建 csv 存储位置
-    args.csv_dir = args.csv_dir + args.name
+    args.csv_dir = args.csv_dir + args.name + "_csv"
     os.mkdir(args.csv_dir)
 
     # 固定所有的随机种子

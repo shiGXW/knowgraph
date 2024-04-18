@@ -44,23 +44,20 @@ def dataset_part(excel_datas):
     industry_dict = {item: [] for item in excel_datas[0][0][list(excel_datas[0][0].keys())[1]]}
     industry_train_dict = {item: [] for item in excel_datas[0][0][list(excel_datas[0][0].keys())[1]]}
     industry_valid_dict = {item: [] for item in excel_datas[0][0][list(excel_datas[0][0].keys())[1]]}
-    industry_test_dict = {item: [] for item in excel_datas[0][0][list(excel_datas[0][0].keys())[1]]}
     # 字典数据写入数据集字典
     for item in range(excel_datas[0][1]):
         industry_dict[excel_datas[0][0][list(excel_datas[0][0].keys())[1]][item]].append(item)
     # 划分
     for key in list(industry_dict.keys()):
         if len(industry_dict[key]) > 1:
-            result = split_list(industry_dict[key], train_ratio, 3)
+            result = split_list(industry_dict[key], train_ratio, 2)
             industry_train_dict[key] = result[0]
             industry_valid_dict[key] = result[1]
-            industry_test_dict[key] = result[2]
     # 数据集列表
     # excel_datas[0][0] 中 enterprise 的元素位置
     industry_train_list = [x for sublist in list(industry_train_dict.values()) for x in sublist]
     industry_valid_list = [x for sublist in list(industry_valid_dict.values()) for x in sublist]
-    industry_test_list = [x for sublist in list(industry_test_dict.values()) for x in sublist]
-    return industry_train_list, industry_valid_list, industry_test_list
+    return industry_train_list, industry_valid_list
 
 
 def split_list(lst, ratios, num_splits):
@@ -189,7 +186,7 @@ def plan_id_deal(excel_datas, planid_data, index, data_list):
 
 
 if __name__ == '__main__':
-    train_ratio = [0.6, 0.2, 0.2]
+    train_ratio = [0.8, 0.2]
     # 获取数据
     excel_path = r"./datasets/knowgraph/"
     # list 为文件名，0,1,2,3,4,5,6,
@@ -204,9 +201,8 @@ if __name__ == '__main__':
     with open(os.path.join(excel_path, 'id_enterprise_dict.json'), 'w') as json_file:
         json_file.write(id_enterprise_dict_json_str)
     # 划分数据集
-    industry_train_list, industry_valid_list, industry_test_list = dataset_part(excel_datas)
+    industry_train_list, industry_valid_list = dataset_part(excel_datas)
     # 训练数据写入 txt，list 为读取到的数据在 excel_datas 中的位置
     write_txt(excel_datas, industry_train_list, "train", [0, 1, 2, 4, 5])
     write_txt(excel_datas, industry_valid_list, "valid", [0, 1, 2, 4, 5])
-    write_txt(excel_datas, industry_test_list, "test", [0, 1, 2, 4, 5])
     # print(dataenterdict)
