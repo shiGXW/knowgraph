@@ -22,7 +22,7 @@ cd /home/GXW/code/pytorch/knowgraph/B_data
 # 不使用测试集
 nohup python -u ./run-notest.py > /dev/null 2>&1 &
 kill -9 $(pgrep -f './run-notest.py')
-nohup python -u datadeal-notest.py >> ./run-new.log 2>&1 &
+nohup python -u datadeal-notest.py >> ./run.log 2>&1 &
 kill -9 $(pgrep -f 'datadeal-notest.py')
 
 # 使用测试集
@@ -32,4 +32,26 @@ nohup python -u datadeal.py >> ./run.log 2>&1 &
 kill -9 $(pgrep -f 'datadeal.py')
 ```
 
-## 2.
+## 2. 调参
+
+### 2.1. 重采样
+
+聊聊Pytorch中的dataloader——sampler模块
+https://zhuanlan.zhihu.com/p/117270644
+
+当dataloader的shuffle参数为True时，系统会自动调用采样器data.RandomSampler——数据随机采样
+同一个epoch下的batch中有重复数据
+replacement用于指定是否可以重复选取某一个样本，默认为True，即允许在一个epoch中重复采样某一个数据
+https://blog.csdn.net/qq_50001789/article/details/128974424
+
+### 2.2. 学习率
+
+调整学习率（torch.optim.lr_scheduler）
+https://blog.csdn.net/qq_40206371/article/details/119910592
+
+
+### 3. 论文
+基于知识图谱的图神经网络推理
+https://zhuanlan.zhihu.com/p/647114494
+CompGCN
+https://blog.csdn.net/sinat_28978363/article/details/105298286

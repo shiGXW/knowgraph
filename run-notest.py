@@ -152,7 +152,6 @@ class Runner(object):
         self.logger = get_logger(self.p.name, self.p.log_dir, os.path.abspath(self.p.config_dir))
 
         self.logger.info(vars(self.p))
-        pprint(vars(self.p))
 
         if self.p.gpu != '-1' and torch.cuda.is_available():
             self.device = torch.device('cuda')
@@ -164,6 +163,17 @@ class Runner(object):
         self.load_data()
         self.model = self.add_model(self.p.model, self.p.score_func)
         self.optimizer = self.add_optimizer(self.model.parameters())
+
+        # 学习率率的变化策略
+        if self.p.lr_scheduler == True:
+            self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer,
+                                                                     T_max=20,
+                                                                     eta_min=0.0000001,
+                                                                     last_epoch=-1)
+        else:
+            self.lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer,
+                                                                     milestones=args.lr_steps,
+                                                                     gamma=args.lr_gamma)
 
     def add_model(self, model, score_func):
         """
@@ -245,6 +255,7 @@ class Runner(object):
             'best_val': self.best_val,
             'best_epoch': self.best_epoch,
             'optimizer': self.optimizer.state_dict(),
+            'lr_scheduler': self.lr_scheduler.state_dict(),
             'args': vars(self.p)
         }
         torch.save(state, save_path)
@@ -267,6 +278,7 @@ class Runner(object):
 
         self.model.load_state_dict(state_dict)
         self.optimizer.load_state_dict(state['optimizer'])
+        self.lr_scheduler.load_state_dict(state['lr_scheduler'])
 
     def save_csv(self, sub_total, rel_total, obj_total, target_pred_total, label_total, results, rel_flag):
         sub_total = np.array(sub_total, dtype=np.int32)
@@ -302,6 +314,7 @@ class Runner(object):
             export_info["enterid"].append(self.id2ent[sub_total[item]])
             # 处理 pred_industry
             # 预测阈值
+            print(target_pred_total[item])
             if target_pred_total[item] >= self.p.accuracy_th:
                 if sub_total[item] in pred_industry_total.keys():
                     pred_industry_total[str(sub_total[item])].append(self.id2ent[obj_total[item]])
@@ -357,10 +370,12 @@ class Runner(object):
 
         """
         left_results = self.predict(split=split, mode='tail_batch')
+        # left_results, sub_total, rel_total, obj_total, target_pred_total, label_total = self.predict(split=split, mode='tail_batch')
         right_results = self.predict(split=split, mode='head_batch')
         results = get_combined_results(left_results, right_results)
-        self.logger.info('[Epoch {} {}]: MRR: Tail : {:.5}, Head : {:.5}, Avg : {:.5}'.format(
+        self.logger.info('[Epoch {} {}]: MRR: Tail : {:.5f}, Head : {:.5f}, Avg : {:.5f}\n'.format(
             epoch, split, results['left_mrr'], results['right_mrr'], results['mrr']))
+        # self.save_csv(sub_total, rel_total, obj_total, target_pred_total, label_total, results, rel_flag=0)
         return results
 
     def predict(self, split='valid', mode='tail_batch'):
@@ -399,7 +414,7 @@ class Runner(object):
                 b_range = torch.arange(pred.size()[0], device=self.device)
                 # 预测概率——对应于每一个 obj
                 target_pred = pred[b_range, obj]
-                if mode == 'tail_batch':
+                if mode == 'tail_batch' and self.p.dataset == 'knowgraph':
                     # 存入三元组
                     sub_total = np.concatenate((sub_total, sub.cpu()), axis=0)
                     rel_total = np.concatenate((rel_total, rel.cpu()), axis=0)
@@ -426,12 +441,13 @@ class Runner(object):
                     results['hits@{}'.format(k + 1)] = torch.numel(ranks[ranks <= (k + 1)]) + results.get('hits@{}'.format(k + 1), 0.0)
 
                 if step % 100 == 0:
-                    self.logger.info('[{}, {} Step {}]\t{}'.format(split.title(), mode.title(), step, results['mrr']))
-        if mode == 'tail_batch':
-            self.save_csv(sub_total, rel_total, obj_total, target_pred_total, label_total, results, 0)
-        return results
+                    self.logger.info('[{}| {} Step {}]\t{}'.format(split.title(), mode.title(), step, results['mrr']))
+        if mode == 'tail_batch' and self.p.dataset == 'knowgraph':
+            return results, sub_total, rel_total, obj_total, target_pred_total, label_total
+        else:
+            return results
 
-    def run_epoch(self, epoch, val_mrr=0):
+    def run_epoch(self, epoch):
         """
         Function to run one epoch of training
 
@@ -459,12 +475,10 @@ class Runner(object):
             losses.append(loss.item())
 
             if step % 100 == 0:
-                self.logger.info('[E:{}| {}]: Train Loss:{:.5},  Val MRR:{:.5}\t{}'.format(epoch, step, np.mean(losses),
-                                                                                           self.best_val_mrr,
-                                                                                           self.p.name))
+                self.logger.info('[Epoch:{}| {}]: Train Loss:{:.5f}'.format(epoch, step, np.mean(losses)))
 
         loss = np.mean(losses)
-        self.logger.info('[Epoch:{}]:  Training Loss:{:.4}\n'.format(epoch, loss))
+        self.logger.info('[Epoch {} Loss]:  Training Loss:{:.5f}\n'.format(epoch, loss))
         return loss
 
     def fit(self):
@@ -486,7 +500,7 @@ class Runner(object):
 
         kill_cnt = 0
         for epoch in range(self.p.max_epochs):
-            train_loss = self.run_epoch(epoch, val_mrr)
+            train_loss = self.run_epoch(epoch)
             val_results = self.evaluate('valid', epoch)
 
             if val_results['mrr'] > self.best_val_mrr:
@@ -497,15 +511,19 @@ class Runner(object):
                 kill_cnt = 0
             else:
                 kill_cnt += 1
-                if kill_cnt % 10 == 0 and self.p.gamma > 50:
+                if kill_cnt % 10 == 0 and self.p.gamma > 5:
                     self.p.gamma -= 5
                     self.logger.info('Gamma decay on saturation, updated value of gamma: {}'.format(self.p.gamma))
-                if kill_cnt > 25:
+                if kill_cnt > 500:
                     self.logger.info("Early Stopping!!")
                     break
 
-            self.logger.info \
-                ('[Epoch {}]: Training Loss: {:.5}, Valid MRR: {:.5}\n\n'.format(epoch, train_loss, self.best_val_mrr))
+            self.logger.info(
+                '[Epoch {}]: lr:{:.9f}, Training Loss: {:.5f}, Valid MRR: {:.5f}, H@10: {:.5f}\n'.format(
+                epoch, self.optimizer.param_groups[0]["lr"], train_loss, val_results['mrr'], val_results['hits@10']))
+
+            # 更新学习率
+            self.lr_scheduler.step()
 
 
 if __name__ == '__main__':
@@ -514,20 +532,31 @@ if __name__ == '__main__':
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('-name', default='testrun', help='Set run name for saving/restoring models')
-    parser.add_argument('-data', dest='dataset', default='knowgraph', help='Dataset to use, default: FB15k-237')
+    parser.add_argument('-data', dest='dataset', default='FB15k-237', help='Dataset to use, default: FB15k-237, knowgraph')
     parser.add_argument('-model', dest='model', default='CompGCN', help='Model Name')
     parser.add_argument('-score_func', dest='score_func', default='conve', help='Score Function for Link prediction')
     parser.add_argument('-opn', dest='opn', default='sub', help='Composition Operation to be used in CompGCN')
 
     parser.add_argument('-batch', dest='batch_size', default=128, type=int, help='Batch size')
     parser.add_argument('-gamma', type=float, default=40.0, help='Margin')
-    parser.add_argument('-gpu', type=str, default='0', help='Set GPU Ids : Eg: For CPU = -1, For Single GPU = 0')
+    parser.add_argument('-gpu', type=str, default='0', help='Set GPU Ids : Eg: For CPU = -1, For Single GPU = 0, 1')
     parser.add_argument('-epoch', dest='max_epochs', type=int, default=500, help='Number of epochs')
     parser.add_argument('-l2', type=float, default=0.0, help='L2 Regularization for Optimizer')
-    parser.add_argument('-lr', type=float, default=0.001, help='Starting Learning Rate')
+    parser.add_argument('-lr', type=float, default=0.01, help='Starting Learning Rate')
+    # 针对torch.optim.lr_scheduler
+    parser.add_argument('-lr_scheduler', dest='lr_scheduler', type=bool, default=False, help='Label Smoothing')
+    # MultiStepLR的参数
+    # 设置学习率降低的epoch位置
+    # [16, 22], [6, 16],
+    parser.add_argument('--lr-steps', type=int, default=[50, 100, 150, 200, 300], nargs='+',
+                        help='decrease lr every step-size epochs')
+    # 学习率衰减的倍数
+    parser.add_argument('--lr-gamma', type=float, default=0.1,
+                        help='decrease lr by a factor of lr-gamma')
+
     parser.add_argument('-lbl_smooth', dest='lbl_smooth', type=float, default=0.1, help='Label Smoothing')
     parser.add_argument('-num_workers', type=int, default=0, help='Number of processes to construct batches')
-    parser.add_argument('-seed', dest='seed', default=41504, type=int, help='Seed for randomization')
+    parser.add_argument('-seed', dest='seed', default=7588, type=int, help='Seed for randomization')
     parser.add_argument('-accuracy_th', type=float, default=0.5, help='预测阈值')
 
     parser.add_argument('-restore', dest='restore', action='store_true', help='Restore from the previously saved model')
@@ -535,14 +564,14 @@ if __name__ == '__main__':
 
     parser.add_argument('-num_bases', dest='num_bases', default=-1, type=int,
                         help='Number of basis relation vectors to use')
-    parser.add_argument('-init_dim', dest='init_dim', default=100, type=int,
+    parser.add_argument('-init_dim', dest='init_dim', default=200, type=int,
                         help='Initial dimension size for entities and relations')
-    parser.add_argument('-gcn_dim', dest='gcn_dim', default=200, type=int, help='Number of hidden units in GCN')
+    parser.add_argument('-gcn_dim', dest='gcn_dim', default=150, type=int, help='Number of hidden units in GCN')
     parser.add_argument('-embed_dim', dest='embed_dim', default=None, type=int,
                         help='Embedding dimension to give as input to score function')
-    parser.add_argument('-gcn_layer', dest='gcn_layer', default=1, type=int, help='Number of GCN Layers to use')
+    parser.add_argument('-gcn_layer', dest='gcn_layer', default=2, type=int, help='Number of GCN Layers to use')
     parser.add_argument('-gcn_drop', dest='dropout', default=0.1, type=float, help='Dropout to use in GCN Layer')
-    parser.add_argument('-hid_drop', dest='hid_drop', default=0.3, type=float, help='Dropout after GCN')
+    parser.add_argument('-hid_drop', dest='hid_drop', default=0.1, type=float, help='Dropout after GCN')
 
     # ConvE specific hyperparameters
     parser.add_argument('-hid_drop2', dest='hid_drop2', default=0.3, type=float, help='ConvE: Hidden dropout')
@@ -551,7 +580,7 @@ if __name__ == '__main__':
     parser.add_argument('-k_h', dest='k_h', default=20, type=int, help='ConvE: k_h')
     parser.add_argument('-num_filt', dest='num_filt', default=200, type=int,
                         help='ConvE: Number of filters in convolution')
-    parser.add_argument('-ker_sz', dest='ker_sz', default=7, type=int, help='ConvE: Kernel size to use')
+    parser.add_argument('-ker_sz', dest='ker_sz', default=5, type=int, help='ConvE: Kernel size to use')
 
     parser.add_argument('-logdir', dest='log_dir', default='./D_export/log/', help='Log directory')
     parser.add_argument('-checkpointsdir', dest='checkpoints_dir', default='./D_export/checkpoints/', help='Log directory')
@@ -567,6 +596,8 @@ if __name__ == '__main__':
     # 创建 csv 存储位置
     args.csv_dir = args.csv_dir + args.name + "_csv"
     os.mkdir(args.csv_dir)
+
+    args.seed = np.random.randint(1000, 100000)
 
     # 固定所有的随机种子
     random.seed(args.seed)
