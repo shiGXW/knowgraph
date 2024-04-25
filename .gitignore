@@ -1,4 +1,5 @@
 B_data/datasets/*
+B_data/bert-base-chinese/*
 D_export/checkpoints/*
 D_export/log/*
 .idea/*

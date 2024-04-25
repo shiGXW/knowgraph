@@ -4,16 +4,20 @@ import hashlib
 import os
 import re
 import json
+import jieba
+import numpy as np
 import pandas as pd
 import difflib
 from gensim import models
+from scipy import spatial
+from BERT import *
 
 
 # 读取csv
 def read_csv(data_path, indexs):
     excel_datas = []
     for index in indexs:
-        if index in [7]:
+        if index in [7, 8]:
             file_name = data_path + str(index) + ".txt"
             try:
                 excel_data = pd.read_csv(file_name, delimiter='\t', encoding="gbk", dtype=str)
@@ -132,15 +136,16 @@ def dataset_part(excel_datas):
     with open(os.path.join(excel_path, 'industry_class_S_sort_dict.json'), 'r') as json_file:
         industry_class_S_sort_dict = json.loads(str(json_file.read()))
     # 划分数据集
+    # 为保证数据质量，只取行业填选完整的企业，且行业小类至少有两家企业
     for key in list(industry_class_S_sort_dict.keys()):
-        if len(industry_dict[key]) > 1:
+        if int(industry_class_S_sort_dict[key]) > 1:
             result = split_list(industry_dict[key], train_ratio, 2)
             industry_train_dict[key] = result[0]
             industry_valid_dict[key] = result[1]
     # 数据集列表
-    # excel_datas[0][0] 中 enterprise 的元素位置
     industry_train_list = [x for sublist in list(industry_train_dict.values()) for x in sublist]
     industry_valid_list = [x for sublist in list(industry_valid_dict.values()) for x in sublist]
+    # 返回 excel_datas[0][0] 中 enterprise 的元素位置
     return industry_train_list, industry_valid_list
 
 
@@ -193,7 +198,9 @@ def dealRawAcc(excel_data):
         except:
             data_except.append(excel_data[list(excel_data.keys())[1]][item])
             continue
-    print(data_except)
+    print("dealRawAcc")
+    print(len(data_except))
+    print("\n")
     return enters_ex, rawaccs_ex
 
 
@@ -224,19 +231,19 @@ def dealRawAcc_difflib(excel_data):
         except:
             data_except.append(excel_data[list(excel_data.keys())[1]][item])
             continue
-    print(data_except)
+    print("dealRawAcc_difflib")
+    print(len(data_except))
+    print("\n")
     return enters_ex, rawaccs_ex
 
 
-def dealRawAcc_Word2Vec(excel_data):
+def dealRawAcc_Word2Vec(excel_datas, excel_data):
     enters_ex = []
     rawaccs_ex = []
     data_except = []
     delimiters = ["、", "（", "）"]
-    # 读取原辅材料匹配数据
-    RawAcc_codes = match_rm_get(excel_path + "匹配度.xlsx")
     # 加载 wiki 模型
-    model = models.word2vec.Word2Vec.load('./datasets/knowgraph/wiki.zh.text.model')
+    model = models.word2vec.Word2Vec.load("./datasets/knowgraph/wiki.zh.text.model")
     for item in range(len(excel_data[list(excel_data.keys())[0]])):
         try:
             # 分割内容
@@ -247,17 +254,94 @@ def dealRawAcc_Word2Vec(excel_data):
                     enters_ex.append(excel_data[list(excel_data.keys())[0]][item])
                     rawacc_temp = None
                     match_ratio = 0.0
-                    for index, RawAcc in enumerate(RawAcc_codes[:0]):
-                        if model.wv.similarity(rawacc, RawAcc) > match_ratio:
-                            match_ratio = model.wv.similarity(rawacc, RawAcc)
-                            rawacc_temp = code_get(RawAcc_codes[index])
+                    for index, RawAcc in enumerate(excel_datas[8][0][str(5)]):
+                        match_ratiotemp = calculate_sentence_similar(model, rawacc, RawAcc)
+                        # print(match_ratiotemp)
+                        if match_ratiotemp > match_ratio:
+                            match_ratio = match_ratiotemp
+                            rawacc_temp = RawAcc
                     rawaccs_ex.append(rawacc_temp)
                 else:
                     data_except.append(excel_data[list(excel_data.keys())[1]][item])
         except:
             data_except.append(excel_data[list(excel_data.keys())[1]][item])
             continue
-    print(data_except)
+    print("dealRawAcc_Word2Vec")
+    print(len(data_except))
+    print("\n")
+    return enters_ex, rawaccs_ex
+
+
+# 计算两个句子相似度
+def calculate_sentence_similar(model, sentence1, sentence2):
+    # 分词
+    vector1 = build_sentence_vector(sentence1, 256, model)
+    vector2 = build_sentence_vector(sentence2, 256, model)
+    a = np.array(vector1).reshape(-1)
+    b = np.array(vector2).reshape(-1)
+    uu = np.average(np.square(a), weights=None)
+    vv = np.average(np.square(b), weights=None)
+    if np.sqrt(uu * vv) == 0.0 or np.isnan(np.sqrt(uu * vv)):
+        similarity = 0
+    else:
+        similarity = 1 - spatial.distance.cosine(a, b)
+    return similarity
+
+
+# sentence是输入的句子，size是词向量维度，w2v_model是训练好的词向量模型
+def build_sentence_vector(sentence, size, w2v_model):
+    vec = np.zeros(size).reshape((1, size))
+    count = 0
+    for word in jieba.cut(sentence, cut_all=False):
+        try:
+            vec += w2v_model.wv[word].reshape((1, size))
+            count += 1
+        except KeyError:
+            continue
+    # RuntimeWarning: invalid value encountered in scalar divide
+    if count != 0 or np.isnan(count):
+        vec /= count
+    return vec
+
+
+def dealRawAcc_BERT(excel_datas, excel_data):
+    enters_ex = []
+    rawaccs_ex = []
+    data_except = []
+    delimiters = ["、", "（", "）"]
+    # 加载模型
+    BBc = BertBaseChinese("./bert-base-chinese", "cuda:0")
+    # 加载
+    catalogue_data = excel_datas[8][0][str(5)]
+    for item in range(len(excel_data[list(excel_data.keys())[0]])):
+        try:
+            # 分割内容
+            regex_pattern = '|'.join(map(re.escape, delimiters))
+            rawacc_list = re.split(regex_pattern, excel_data[list(excel_data.keys())[1]][item].strip().replace(" ", ""))
+            for rawacc in rawacc_list:
+                if rawacc:
+                    enters_ex.append(excel_data[list(excel_data.keys())[0]][item])
+                    rawacc_temp = None
+                    match_ratio = 0.0
+
+                    similarities = BBc.train(
+                        [rawacc for _ in range(len(catalogue_data))],
+                        excel_datas[8][0][str(5)], batch_size=1024
+                    )
+
+                    for index, similar in enumerate(similarities):
+                        if similar > match_ratio:
+                            match_ratio = similar
+                            rawacc_temp = catalogue_data[index]
+                    rawaccs_ex.append(rawacc_temp)
+                else:
+                    data_except.append(excel_data[list(excel_data.keys())[1]][item])
+        except:
+            data_except.append(excel_data[list(excel_data.keys())[1]][item])
+            continue
+    print("dealRawAcc_Word2Vec")
+    print(len(data_except))
+    print("\n")
     return enters_ex, rawaccs_ex
 
 
@@ -291,14 +375,18 @@ def write_txt(excel_datas, data_list, flag, indexs):
     for index in indexs:
         # [0, 1, 2]，list 为读取到的数据在 excel_datas 中的位置
         if index == 0:
+            # 企业id——行业
+            print("三元组：企业id——行业")
             for item in data_list:
-                if isinstance(excel_datas[index][0][list(excel_datas[index][0].keys())[1]][item], str):
-                    data_triples["sub"].append(excel_datas[index][0][list(excel_datas[index][0].keys())[0]][item])
-                    data_triples["rel"].append(rel_list[index])
-                    data_triples["obj"].append(
-                        excel_datas[index][0][list(excel_datas[index][0].keys())[1]][item].replace("\t", "").replace("?", "")
-                    )
+                data_triples["sub"].append(excel_datas[index][0][list(excel_datas[index][0].keys())[0]][item])
+                data_triples["rel"].append(rel_list[index])
+                data_triples["obj"].append(
+                    excel_datas[index][0][list(excel_datas[index][0].keys())[1]][item].replace("\t", "")
+                )
         elif index in [1, 2]:
+            # 企业id——危废类别、危废
+            print("三元组：企业id——危废类别、危废")
+            data_except = []
             for item in data_list:
                 item_index = ent_id_deal(excel_datas, index, item)
                 if item_index and isinstance(excel_datas[index][0][list(excel_datas[index][0].keys())[1]][item_index], str):
@@ -307,8 +395,14 @@ def write_txt(excel_datas, data_list, flag, indexs):
                     data_triples["obj"].append(
                         excel_datas[index][0][list(excel_datas[index][0].keys())[1]][item_index].replace("\t", "").replace("?", "")
                     )
+                else:
+                    data_except.append(excel_datas[index][0][list(excel_datas[index][0].keys())[1]][item_index])
+            print(len(data_except))
+            print("\n")
         else:
-            planid_data = dealRawAcc_Word2Vec(excel_datas[index][0])
+            # 计划id——原料、产品
+            print("三元组：计划id——原料、产品")
+            planid_data = dealRawAcc_BERT(excel_datas, excel_datas[index][0])
             plan_deal_sub_list, plan_deal_obj_list = plan_id_deal(excel_datas, planid_data, 3, data_list)
             for item in range(len(plan_deal_sub_list)):
                 # if data_triples["sub"] and data_triples["rel"] and data_triples["obj"]:
@@ -356,7 +450,9 @@ def plan_id_deal(excel_datas, planid_data, index, data_list):
                 except:
                     data_except.append(enterpriseId)
                     continue
-    # print(data_except)
+    print("plan_id_deal")
+    print(len(data_except))
+    print("\n")
     print(len(sub_list), len(obj_list))
     return sub_list, obj_list
 
@@ -366,13 +462,13 @@ if __name__ == '__main__':
     # 获取数据
     excel_path = r"./datasets/knowgraph/"
     # list 为文件名，0,1,2,3,4,5,6,
-    excel_datas = read_csv(excel_path, [0, 1, 2, 3, 4, 5, 6, 7])
+    excel_datas = read_csv(excel_path, [0, 1, 2, 3, 4, 5, 6, 7, 8])
     # data_stat_id(excel_datas)
     # data_stat_md5(excel_datas)
-    data_stat_industry(excel_datas)
-    # # 划分数据集
-    # industry_train_list, industry_valid_list = dataset_part(excel_datas)
-    # # 训练数据写入 txt，list 为读取到的数据在 excel_datas 中的位置
-    # write_txt(excel_datas, industry_train_list, "train", [0, 1, 2, 4, 5])
-    # write_txt(excel_datas, industry_valid_list, "valid", [0, 1, 2, 4, 5])
+    # data_stat_industry(excel_datas)
+    # 划分数据集
+    industry_train_list, industry_valid_list = dataset_part(excel_datas)
+    # 训练数据写入 txt，list 为读取到的数据在 excel_datas 中的位置
+    write_txt(excel_datas, industry_train_list, "train", [0, 1, 2, 4, 5])
+    write_txt(excel_datas, industry_valid_list, "valid", [0, 1, 2, 4, 5])
     print("Done!!!")
