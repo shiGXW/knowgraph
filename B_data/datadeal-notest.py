@@ -198,9 +198,9 @@ def dealRawAcc(excel_data):
         except:
             data_except.append(excel_data[list(excel_data.keys())[1]][item])
             continue
-    print("dealRawAcc")
-    print(len(data_except))
-    print("\n")
+    logging.info("dealRawAcc")
+    logging.info(len(data_except))
+    logging.info("\n")
     return enters_ex, rawaccs_ex
 
 
@@ -231,9 +231,9 @@ def dealRawAcc_difflib(excel_data):
         except:
             data_except.append(excel_data[list(excel_data.keys())[1]][item])
             continue
-    print("dealRawAcc_difflib")
-    print(len(data_except))
-    print("\n")
+    logging.info("dealRawAcc_difflib")
+    logging.info(len(data_except))
+    logging.info("\n")
     return enters_ex, rawaccs_ex
 
 
@@ -256,7 +256,7 @@ def dealRawAcc_Word2Vec(excel_datas, excel_data):
                     match_ratio = 0.0
                     for index, RawAcc in enumerate(excel_datas[8][0][str(5)]):
                         match_ratiotemp = calculate_sentence_similar(model, rawacc, RawAcc)
-                        # print(match_ratiotemp)
+                        # logging.info(match_ratiotemp)
                         if match_ratiotemp > match_ratio:
                             match_ratio = match_ratiotemp
                             rawacc_temp = RawAcc
@@ -266,9 +266,9 @@ def dealRawAcc_Word2Vec(excel_datas, excel_data):
         except:
             data_except.append(excel_data[list(excel_data.keys())[1]][item])
             continue
-    print("dealRawAcc_Word2Vec")
-    print(len(data_except))
-    print("\n")
+    logging.info("dealRawAcc_Word2Vec")
+    logging.info(len(data_except))
+    logging.info("\n")
     return enters_ex, rawaccs_ex
 
 
@@ -310,9 +310,10 @@ def dealRawAcc_BERT(excel_datas, excel_data):
     data_except = []
     delimiters = ["、", "（", "）"]
     # 加载模型
-    BBc = BertBaseChinese("./bert-base-chinese", "cuda:0")
+    BBc = BertBaseChinese("./bert-base-chinese", "cuda:1")
     # 加载
     catalogue_data = excel_datas[8][0][str(5)]
+    logging.info(f"catalogue_data：{len(catalogue_data)}")
     for item in range(len(excel_data[list(excel_data.keys())[0]])):
         try:
             # 分割内容
@@ -326,7 +327,7 @@ def dealRawAcc_BERT(excel_datas, excel_data):
 
                     similarities = BBc.train(
                         [rawacc for _ in range(len(catalogue_data))],
-                        excel_datas[8][0][str(5)], batch_size=1024
+                        excel_datas[8][0][str(5)], batch_size=1024 * 13
                     )
 
                     for index, similar in enumerate(similarities):
@@ -339,16 +340,16 @@ def dealRawAcc_BERT(excel_datas, excel_data):
         except:
             data_except.append(excel_data[list(excel_data.keys())[1]][item])
             continue
-    print("dealRawAcc_Word2Vec")
-    print(len(data_except))
-    print("\n")
+    logging.info("dealRawAcc_Word2Vec")
+    logging.info(len(data_except))
+    logging.info("\n")
     return enters_ex, rawaccs_ex
 
 
 # 原辅材料匹配数据读取
 def match_rm_get(localpath):
     # 读取.xlsx
-    print("载入原辅材料匹配数据：" + localpath)
+    logging.info("载入原辅材料匹配数据：" + localpath)
     data = pd.read_excel(localpath, header=None)
     # 材料 [0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33]
     # 编码 [0, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31, 34]
@@ -376,7 +377,7 @@ def write_txt(excel_datas, data_list, flag, indexs):
         # [0, 1, 2]，list 为读取到的数据在 excel_datas 中的位置
         if index == 0:
             # 企业id——行业
-            print("三元组：企业id——行业")
+            logging.info("三元组：企业id——行业")
             for item in data_list:
                 data_triples["sub"].append(excel_datas[index][0][list(excel_datas[index][0].keys())[0]][item])
                 data_triples["rel"].append(rel_list[index])
@@ -385,7 +386,7 @@ def write_txt(excel_datas, data_list, flag, indexs):
                 )
         elif index in [1, 2]:
             # 企业id——危废类别、危废
-            print("三元组：企业id——危废类别、危废")
+            logging.info("三元组：企业id——危废类别、危废")
             data_except = []
             for item in data_list:
                 item_index = ent_id_deal(excel_datas, index, item)
@@ -397,11 +398,10 @@ def write_txt(excel_datas, data_list, flag, indexs):
                     )
                 else:
                     data_except.append(excel_datas[index][0][list(excel_datas[index][0].keys())[1]][item_index])
-            print(len(data_except))
-            print("\n")
+            logging.info(len(data_except))
         else:
             # 计划id——原料、产品
-            print("三元组：计划id——原料、产品")
+            logging.info("三元组：计划id——原料、产品")
             planid_data = dealRawAcc_BERT(excel_datas, excel_datas[index][0])
             plan_deal_sub_list, plan_deal_obj_list = plan_id_deal(excel_datas, planid_data, 3, data_list)
             for item in range(len(plan_deal_sub_list)):
@@ -438,10 +438,10 @@ def plan_id_deal(excel_datas, planid_data, index, data_list):
         for planid in excel_datas[index][0]["planId"]:
             if planid == planid_data[0][item]:
                 # planid 对应的 enterpriseId
-                # print(excel_datas[index][0]["planId"].index(planid))
-                # print(planid)
+                # logging.info(excel_datas[index][0]["planId"].index(planid))
+                # logging.info(planid)
                 enterpriseId = excel_datas[index][0]["enterpriseId"][excel_datas[index][0]["planId"].index(planid)]
-                # print(enterpriseId)
+                # logging.info(enterpriseId)
                 # enterpriseId 是否在该数据集
                 try:
                     if excel_datas[0][0]["entid"].index(enterpriseId) in data_list:
@@ -450,14 +450,15 @@ def plan_id_deal(excel_datas, planid_data, index, data_list):
                 except:
                     data_except.append(enterpriseId)
                     continue
-    print("plan_id_deal")
-    print(len(data_except))
-    print("\n")
-    print(len(sub_list), len(obj_list))
+    logging.info("plan_id_deal")
+    logging.info(len(data_except))
+    logging.info(len(sub_list), len(obj_list))
     return sub_list, obj_list
 
 
 if __name__ == '__main__':
+    # 设置输出日志
+    logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
     train_ratio = [0.8, 0.2]
     # 获取数据
     excel_path = r"./datasets/knowgraph/"
@@ -471,4 +472,4 @@ if __name__ == '__main__':
     # 训练数据写入 txt，list 为读取到的数据在 excel_datas 中的位置
     write_txt(excel_datas, industry_train_list, "train", [0, 1, 2, 4, 5])
     write_txt(excel_datas, industry_valid_list, "valid", [0, 1, 2, 4, 5])
-    print("Done!!!")
+    logging.info("Done!!!")

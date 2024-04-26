@@ -9,8 +9,7 @@ from transformers import BertTokenizer, BertModel
 class BertBaseChinese():
     def __init__(self, model_name, device):
         # 设置输出日志
-        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO,
-                            filename='BERT.log')
+        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
         # 初始化及检查GPU设备
         if torch.cuda.is_available():
@@ -26,9 +25,11 @@ class BertBaseChinese():
         self.tokenizer = BertTokenizer.from_pretrained(model_name)
         self.model = BertModel.from_pretrained(model_name).to(self.device)
 
-    def train(self, sentences1, sentences2, batch_size):
+    def train(self, sentences1, sentences2, batch_size=32):
         # 按照每批32个句子对计算相似度
-        similarities = self.batch_compare_sentences(sentences1, sentences2, batch_size=32)
+        similarities = self.batch_compare_sentences(sentences1, sentences2, batch_size)
+
+        # logging.info(f"batch_size：{batch_size}")
 
         return similarities
 
