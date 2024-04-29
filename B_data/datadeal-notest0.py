@@ -8,6 +8,9 @@ import time
 import jieba
 import numpy as np
 import pandas as pd
+import difflib
+from gensim import models
+from scipy import spatial
 from BERT import *
 from math import floor
 from ordered_set import OrderedSet
@@ -239,6 +242,199 @@ def split_list(lst, ratios, num_splits):
     return result
 
 
+# 原辅材料数据处理
+def dealRawAcc_Degree(excel_datas, excel_data):
+    enters_ex = []
+    rawaccs_ex = []
+    data_except = []
+    data_degree_no = []
+    delimiters = ["、", "（", "）", "/"]
+    # 读取原辅材料匹配数据
+    RawAcc_codes = match_rm_get(excel_path + "匹配度.xlsx")
+    for item in range(len(excel_data[list(excel_data.keys())[0]])):
+        try:
+            # 分割内容
+            regex_pattern = '|'.join(map(re.escape, delimiters))
+            rawacc_list = re.split(regex_pattern, excel_data[list(excel_data.keys())[1]][item].strip().replace(" ", ""))
+            for rawacc in rawacc_list:
+                if rawacc:
+                    enters_ex.append(excel_data[list(excel_data.keys())[0]][item])
+                    rawacc_temp = rawacc
+                    if rawacc in RawAcc_codes[:, 0]:
+                        rawacc_temp = code_get(RawAcc_codes[list(RawAcc_codes[:, 0]).index(rawacc)])
+                    else:
+                        data_degree_no.append(rawacc)
+                    rawaccs_ex.append(rawacc_temp)
+                else:
+                    data_except.append(excel_data[list(excel_data.keys())[1]][item])
+        except:
+            data_except.append(excel_data[list(excel_data.keys())[1]][item])
+            continue
+    logging.info("dealRawAcc")
+    logging.info(len(data_except))
+    logging.info(data_degree_no)
+    return enters_ex, rawaccs_ex
+
+
+def dealRawAcc_difflib(excel_data):
+    enters_ex = []
+    rawaccs_ex = []
+    data_except = []
+    delimiters = ["、", "（", "）"]
+    # 读取原辅材料匹配数据
+    RawAcc_codes = match_rm_get(excel_path + "匹配度.xlsx")
+    for item in range(len(excel_data[list(excel_data.keys())[0]])):
+        try:
+            # 分割内容
+            regex_pattern = '|'.join(map(re.escape, delimiters))
+            rawacc_list = re.split(regex_pattern, excel_data[list(excel_data.keys())[1]][item].strip().replace(" ", ""))
+            for rawacc in rawacc_list:
+                if rawacc:
+                    enters_ex.append(excel_data[list(excel_data.keys())[0]][item])
+                    rawacc_temp = None
+                    match_ratio = 0.0
+                    for index, RawAcc in enumerate(RawAcc_codes[:, 0]):
+                        if difflib.SequenceMatcher(None, rawacc, RawAcc).ratio() > match_ratio:
+                            match_ratio = difflib.SequenceMatcher(None, rawacc, RawAcc).ratio()
+                            rawacc_temp = code_get(RawAcc_codes[index])
+                    rawaccs_ex.append(rawacc_temp)
+                else:
+                    data_except.append(excel_data[list(excel_data.keys())[1]][item])
+        except:
+            data_except.append(excel_data[list(excel_data.keys())[1]][item])
+            continue
+    logging.info("dealRawAcc_difflib")
+    logging.info(len(data_except))
+    logging.info("\n")
+    return enters_ex, rawaccs_ex
+
+
+def dealRawAcc_Word2Vec(excel_datas, excel_data):
+    enters_ex = []
+    rawaccs_ex = []
+    data_except = []
+    delimiters = ["、", "（", "）"]
+    # 加载 wiki 模型
+    model = models.word2vec.Word2Vec.load("./datasets/knowgraph/wiki.zh.text.model")
+    for item in range(len(excel_data[list(excel_data.keys())[0]])):
+        try:
+            # 分割内容
+            regex_pattern = '|'.join(map(re.escape, delimiters))
+            rawacc_list = re.split(regex_pattern, excel_data[list(excel_data.keys())[1]][item].strip().replace(" ", ""))
+            for rawacc in rawacc_list:
+                if rawacc:
+                    enters_ex.append(excel_data[list(excel_data.keys())[0]][item])
+                    rawacc_temp = None
+                    match_ratio = 0.0
+                    for index, RawAcc in enumerate(excel_datas[8][0][str(5)]):
+                        match_ratiotemp = calculate_sentence_similar(model, rawacc, RawAcc)
+                        # logging.info(match_ratiotemp)
+                        if match_ratiotemp > match_ratio:
+                            match_ratio = match_ratiotemp
+                            rawacc_temp = RawAcc
+                    rawaccs_ex.append(rawacc_temp)
+                else:
+                    data_except.append(excel_data[list(excel_data.keys())[1]][item])
+        except:
+            data_except.append(excel_data[list(excel_data.keys())[1]][item])
+            continue
+    logging.info("dealRawAcc_Word2Vec")
+    logging.info(len(data_except))
+    logging.info("\n")
+    return enters_ex, rawaccs_ex
+
+
+# 计算两个句子相似度
+def calculate_sentence_similar(model, sentence1, sentence2):
+    # 分词
+    vector1 = build_sentence_vector(sentence1, 256, model)
+    vector2 = build_sentence_vector(sentence2, 256, model)
+    a = np.array(vector1).reshape(-1)
+    b = np.array(vector2).reshape(-1)
+    uu = np.average(np.square(a), weights=None)
+    vv = np.average(np.square(b), weights=None)
+    if np.sqrt(uu * vv) == 0.0 or np.isnan(np.sqrt(uu * vv)):
+        similarity = 0
+    else:
+        similarity = 1 - spatial.distance.cosine(a, b)
+    return similarity
+
+
+# sentence是输入的句子，size是词向量维度，w2v_model是训练好的词向量模型
+def build_sentence_vector(sentence, size, w2v_model):
+    vec = np.zeros(size).reshape((1, size))
+    count = 0
+    for word in jieba.cut(sentence, cut_all=False):
+        try:
+            vec += w2v_model.wv[word].reshape((1, size))
+            count += 1
+        except KeyError:
+            continue
+    # RuntimeWarning: invalid value encountered in scalar divide
+    if count != 0 or np.isnan(count):
+        vec /= count
+    return vec
+
+
+def dealRawAcc_BERT(excel_datas, excel_data):
+    enters_ex = []
+    rawaccs_ex = []
+    data_except = []
+    data_item_except = []
+    delimiters = ["、", "（", "）"]
+    # 加载模型
+    BBc = BertBaseChinese("./bert-base-chinese", "cuda:1")
+    # 加载
+    catalogue_data = excel_datas[8][0][str(5)]
+    excel_len = len(excel_data[list(excel_data.keys())[0]])
+    catalogue_len = len(catalogue_data)
+    logging.info(f"excel_data_data：{excel_len}")
+    logging.info(f"catalogue_data：{catalogue_len}")
+    # 进度条及预估时间
+    start_time = time.time()
+    current = 0
+    total = excel_len
+    progress_bar(start_time, total, current)
+    for item in range(len(excel_data[list(excel_data.keys())[0]])):
+        current += 1
+        if current % 1 == 0:
+            progress_bar(start_time, total, current)
+        try:
+            # 分割内容
+            regex_pattern = '|'.join(map(re.escape, delimiters))
+            rawacc_list = re.split(regex_pattern, excel_data[list(excel_data.keys())[1]][item].strip().replace(" ", ""))
+            for rawacc in rawacc_list:
+                if rawacc:
+                    rawacc_temp = None
+                    match_ratio = 0.0
+
+                    similarities = BBc.train(
+                        [rawacc for _ in range(len(catalogue_data))],
+                        excel_datas[8][0][str(5)], batch_size=1024 * 13
+                    )
+
+                    for index, similar in enumerate(similarities):
+                        if similar > match_ratio:
+                            match_ratio = similar
+                            rawacc_temp = catalogue_data[index]
+
+                    if match_ratio >= 0.9:
+                        enters_ex.append(excel_data[list(excel_data.keys())[0]][item])
+                        rawaccs_ex.append(rawacc_temp)
+                    else:
+                        data_except.append(rawacc)
+                else:
+                    data_item_except.append(excel_data[list(excel_data.keys())[1]][item])
+        except:
+            data_item_except.append(excel_data[list(excel_data.keys())[1]][item])
+            continue
+    logging.info("dealRawAcc_Word2Vec")
+    logging.info(len(data_item_except))
+    logging.info(data_except)
+    logging.info("\n")
+    return enters_ex, rawaccs_ex
+
+
 def dealRawAcc_BERT_dict(excel_datas, excel_data):
     planids_ex = []
     rawaccs_ex = []
@@ -270,6 +466,115 @@ def dealRawAcc_BERT_dict(excel_datas, excel_data):
     logging.info(data_except)
     logging.info("\n")
     return planids_ex, rawaccs_ex
+
+
+# 原辅材料匹配数据读取
+def match_rm_get(localpath):
+    # 读取.xlsx
+    logging.info("载入原辅材料匹配数据：" + localpath)
+    data = pd.read_excel(localpath, header=None)
+    # 材料 [0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33]
+    # 编码 [0, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31, 34]
+    codes = data[[0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33]].to_numpy()[1:]
+    return codes
+
+
+# 获取原辅材料匹配数据中对应第一个编码/材料
+def code_get(code):
+    for item in code:
+        # 返回第一个非空编码/材料
+        if not pd.isna(item):
+            return item
+
+
+# 写入txt文件
+def write_txt(excel_datas, data_list, flag, indexs):
+    data_triples = {
+        "sub": [],
+        "rel": [],
+        "obj": [],
+    }
+    rel_list = [
+        "industry", "wasteHW", "waste", "pianid", "material", "product", "", "", "", "", "wastecode"
+    ]
+    for index in indexs:
+        # [0, 1, 2]，list 为读取到的数据在 excel_datas 中的位置
+        if index == 0:
+            # 企业id——行业
+            logging.info("三元组：企业id——行业")
+            for item in data_list:
+                data_triples["sub"].append(excel_datas[index][0][list(excel_datas[index][0].keys())[0]][item])
+                data_triples["rel"].append(rel_list[index])
+                data_triples["obj"].append(
+                    excel_datas[index][0][list(excel_datas[index][0].keys())[1]][item].replace("\t", "")
+                )
+        elif index in [1]:
+            # 企业id——危废类别
+            logging.info("三元组：企业id——危废类别")
+            data_except = []
+            for item in data_list:
+                item_index = ent_id_deal(excel_datas, index, item)
+                try:
+                    data_triples["sub"].append(excel_datas[index][0][list(excel_datas[index][0].keys())[0]][item_index])
+                    data_triples["rel"].append(rel_list[index])
+                    data_triples["obj"].append(
+                        excel_datas[index][0][list(excel_datas[index][0].keys())[1]][item_index].replace("(2016)", "")
+                    )
+                except:
+                    # data_except.append(item)
+                    data_except.append(excel_datas[index][0][list(excel_datas[index][0].keys())[1]][item_index])
+                    continue
+            logging.info(len(data_except))
+        elif index in [2]:
+            # 企业id——危废代码
+            logging.info("三元组：企业id——危废代码")
+            data_except = []
+            for item in data_list:
+                item_index = ent_id_deal(excel_datas, index, item)
+                try:
+                    data_triples["sub"].append(excel_datas[index][0][list(excel_datas[index][0].keys())[0]][item_index])
+                    data_triples["rel"].append(rel_list[index])
+                    data_triples["obj"].append(
+                        excel_datas[index][0][list(excel_datas[index][0].keys())[1]][item_index]
+                    )
+                except:
+                    data_except.append(excel_datas[index][0][list(excel_datas[index][0].keys())[1]][item_index])
+                    continue
+            logging.info(len(data_except))
+        elif index in [4, 5]:
+            # 计划id——原料、产品
+            logging.info("三元组：计划id转企业id——原料、产品")
+            planid_data = dealRawAcc_BERT(excel_datas, excel_datas[index][0])
+            # planid 转 entid
+            plan_deal_sub_list, plan_deal_obj_list = plan_id_deal(excel_datas, planid_data, 3, data_list)
+            for item in range(len(plan_deal_sub_list)):
+                # if data_triples["sub"] and data_triples["rel"] and data_triples["obj"]:
+                data_triples["sub"].append(plan_deal_sub_list[item])
+                data_triples["rel"].append(rel_list[index])
+                data_triples["obj"].append(
+                    plan_deal_obj_list[item]
+                    # plan_deal_obj_list[item].replace("\t", "").replace("?", "")
+                )
+        elif index in [10]:
+            # 危废类别——危废代码
+            logging.info("三元组：危废类别——危废代码")
+            data_except = []
+            for item in data_list:
+                try:
+                    data_triples["sub"].append(excel_datas[index][0][list(excel_datas[index][0].keys())[0]][item].replace("(2016)", ""))
+                    data_triples["rel"].append(rel_list[index])
+                    data_triples["obj"].append(
+                        excel_datas[index][0][list(excel_datas[index][0].keys())[1]][item]
+                    )
+                except:
+                    data_except.append(excel_datas[index][0][list(excel_datas[index][0].keys())[1]][item])
+                    continue
+            logging.info(len(data_except))
+
+    # 导出到文本文件
+    pd.DataFrame({0: data_triples["sub"], 1: data_triples["rel"], 2: data_triples["obj"]}, dtype=str).to_csv(
+        excel_path + f'/{flag}_test.txt', sep='\t', index=False, header=False
+    )
 
 
 # 企业id处理，从而获取企业对应于excel_datas中指定数据的index
@@ -308,6 +613,28 @@ def plan_id_deal(excel_datas, planid_data, index, data_list):
     logging.info(len(data_except))
     logging.info(len(sub_list), len(obj_list))
     return sub_list, obj_list
+
+
+# 进度条函数
+def progress_bar(start_time, total, current):
+    bar_length = 50  # 进度条的长度
+    percent = floor(current / total * 100)
+    if percent > 100:
+        percent = 100
+    bar = ''.join(["#" for _ in range(int(bar_length * current / total))])
+    logging.info("\r[{}->{}] {}% {}".format(bar, ' ' * (bar_length - len(bar)), percent, time_to_complete(start_time, total, current)))
+
+
+# 估算剩余时间
+def time_to_complete(start_time, total, current):
+    if current > 0:
+        dur_per_item = (time.time() - start_time) / current
+        remaining = total - current
+        m, s = divmod(dur_per_item * remaining, 60)
+        h, m = divmod(m, 60)
+        return "Remaining: %02d:%02d:%02d" % (h, m, s)
+    else:
+        return "Estimated time to complete"
 
 
 # 写入txt文件
@@ -441,7 +768,7 @@ def write_train_txt(all_data, dataset_part_dict):
         "rel": [],
         "obj": [],
     }
-    valid_data_triples = {
+    test_data_triples = {
         "sub": [],
         "rel": [],
         "obj": [],
@@ -453,39 +780,17 @@ def write_train_txt(all_data, dataset_part_dict):
                 train_data_triples["rel"].append(data[0][1][index])
                 train_data_triples["obj"].append(data[0][2][index])
             elif item in dataset_part_dict[2]:
-                valid_data_triples["sub"].append(data[0][0][index])
-                valid_data_triples["rel"].append(data[0][1][index])
-                valid_data_triples["obj"].append(data[0][2][index])
+                test_data_triples["sub"].append(data[0][0][index])
+                test_data_triples["rel"].append(data[0][1][index])
+                test_data_triples["obj"].append(data[0][2][index])
             else:
                 # 危险废物类别——小类代码
                 train_data_triples["sub"].append(data[0][0][index])
                 train_data_triples["rel"].append(data[0][1][index])
                 train_data_triples["obj"].append(data[0][2][index])
-                valid_data_triples["sub"].append(data[0][0][index])
-                valid_data_triples["rel"].append(data[0][1][index])
-                valid_data_triples["obj"].append(data[0][2][index])
-
-
-# 进度条函数
-def progress_bar(start_time, total, current):
-    bar_length = 50  # 进度条的长度
-    percent = floor(current / total * 100)
-    if percent > 100:
-        percent = 100
-    bar = ''.join(["#" for _ in range(int(bar_length * current / total))])
-    logging.info("\r[{}->{}] {}% {}".format(bar, ' ' * (bar_length - len(bar)), percent, time_to_complete(start_time, total, current)))
-
-
-# 估算剩余时间
-def time_to_complete(start_time, total, current):
-    if current > 0:
-        dur_per_item = (time.time() - start_time) / current
-        remaining = total - current
-        m, s = divmod(dur_per_item * remaining, 60)
-        h, m = divmod(m, 60)
-        return "Remaining: %02d:%02d:%02d" % (h, m, s)
-    else:
-        return "Estimated time to complete"
+                test_data_triples["sub"].append(data[0][0][index])
+                test_data_triples["rel"].append(data[0][1][index])
+                test_data_triples["obj"].append(data[0][2][index])
 
 
 if __name__ == '__main__':
@@ -503,7 +808,7 @@ if __name__ == '__main__':
     # # 数据统计——id的md5加密：id_md5_dict.json
     # data_stat_md5(excel_datas)
     # # 数据统计——行业统计：industry_class_B_sort_dict.json、industry_class_S_sort_dict.json、data_stat_industry_except.txt
-    #
+
     # data_stat_industry(excel_datas)
     # # 划分数据集
     # dataset_part(excel_datas)
@@ -521,4 +826,7 @@ if __name__ == '__main__':
     # # list 为文件名，"0_all", "1_all", "2_all", "4_all", "5_all", "10_all"
     # all_data = read_csv(excel_path, ["0_all", "1_all", "2_all", "4_all", "5_all", "10_all"])
     # write_train_txt(all_data, dataset_part_dict)
+    # 训练数据写入 txt，list 为读取到的数据在 excel_datas 中的位置
+    # write_txt(excel_datas, industry_train_list, "train", [0, 10, 1, 2, 4, 5])
+    # write_txt(excel_datas, industry_valid_list, "valid", [0, 10, 1, 2, 4, 5])
     logging.info("Done!!!")
