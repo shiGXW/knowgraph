@@ -5,4 +5,3 @@
 from .dataset import TrainDataset
 from .dataset import TestDataset
 from .loader import LoadData
-from .BERT import *

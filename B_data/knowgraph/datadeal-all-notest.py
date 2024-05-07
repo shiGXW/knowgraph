@@ -9,15 +9,17 @@ import jieba
 import numpy as np
 import pandas as pd
 from BERT import *
+from math import nan
 from math import floor
 from ordered_set import OrderedSet
+from collections import defaultdict as ddict
 
 
 # 读取csv
 def read_csv(data_path, indexs):
     excel_datas = []
     for index in indexs:
-        if index in [7, 8, "0_all", "1_all", "2_all", "4_all", "5_all", "10_all"]:
+        if index in ["2021/7", "2021/8", "2022/7", "2022/8"]:
             file_name = data_path + str(index) + ".txt"
             try:
                 excel_data = pd.read_csv(file_name, delimiter='\t', encoding="gbk", dtype=str)
@@ -29,9 +31,6 @@ def read_csv(data_path, indexs):
                 excel_data = pd.read_csv(file_name, header=0, encoding="gbk", dtype=str)
             except:
                 excel_data = pd.read_csv(file_name, header=0, encoding="utf-8", dtype=str)
-        # dataenterdict = {
-        #     "enterprise": [],
-        # }
         # 数据字典
         data_dict = {item: [] for item in excel_data.columns}
         # 数据写入字典
@@ -42,29 +41,94 @@ def read_csv(data_path, indexs):
     return excel_datas
 
 
-# 数据统计——id对应企业名
-def data_stat_id(excel_datas):
-    # # 导出到文本文件
-    # pd.DataFrame({0: excel_datas[0][0]["entid"], 1: excel_datas[0][0]["indName"]}, dtype=str).to_csv(
-    #     excel_path + '/out.txt', sep='\t', index=False, header=False
-    # )
+def data_merge(excel_2021_datas, excel_2022_datas):
+    excel_datas = []
+    for iindex, item in enumerate(["industry", "wasteHW", "waste", "enttype", "areacode", "enterprise", "material", "product", "HW"]):
+        # 数据字典
+        data_dict = {item: [] for item in [0, 1]}
+        if iindex in [0, 1, 2, 3, 4, 5]:
+            for index, data in enumerate(excel_2021_datas[iindex][0][list(excel_2021_datas[iindex][0].keys())[0]]):
+                data_dict[0].append(data)
+                data_dict[1].append(excel_2021_datas[iindex][0][list(excel_2021_datas[iindex][0].keys())[1]][index])
+        # elif iindex in []:
+        #     for index, data in enumerate(excel_2022_datas[iindex][0][list(excel_2022_datas[iindex][0].keys())[0]]):
+        #         data_dict[0].append(data)
+        #         data_dict[1].append(excel_2022_datas[iindex][0][list(excel_2022_datas[iindex][0].keys())[1]][index])
+        #     for index, data in enumerate(excel_2021_datas[iindex][0][list(excel_2021_datas[iindex][0].keys())[0]]):
+        #         data_dict[0].append(data)
+        #         data_dict[1].append(excel_2021_datas[iindex][0][list(excel_2021_datas[iindex][0].keys())[1]][index])
+        elif item == "material":
+            for index, data in enumerate(excel_2022_datas[6][0][list(excel_2022_datas[6][0].keys())[0]]):
+                data_dict[0].append(data)
+                data_dict[1].append(excel_2022_datas[6][0][list(excel_2022_datas[6][0].keys())[1]][index])
+            # planid 转 entid
+            plan_deal_sub_list, plan_deal_obj_list = plan_id_deal(excel_2021_datas,  excel_2021_datas[7][0])
+            for item in range(len(plan_deal_sub_list)):
+                data_dict[0].append(plan_deal_sub_list[item])
+                data_dict[1].append(plan_deal_obj_list[item])
+        elif item == "product":
+            for index, data in enumerate(excel_2022_datas[7][0][list(excel_2022_datas[7][0].keys())[0]]):
+                data_dict[0].append(data)
+                data_dict[1].append(excel_2022_datas[7][0][list(excel_2022_datas[7][0].keys())[1]][index])
+            # planid 转 entid
+            plan_deal_sub_list, plan_deal_obj_list = plan_id_deal(excel_2021_datas, excel_2021_datas[8][0])
+            for item in range(len(plan_deal_sub_list)):
+                data_dict[0].append(plan_deal_sub_list[item])
+                data_dict[1].append(plan_deal_obj_list[item])
+        elif item == "HW":
+            for index, data in enumerate(excel_2022_datas[10][0][list(excel_2022_datas[10][0].keys())[0]]):
+                data_dict[0].append(excel_2022_datas[10][0][list(excel_2022_datas[10][0].keys())[1]][index])
+                data_dict[1].append(data)
+            for index, data in enumerate(excel_2021_datas[11][0][list(excel_2021_datas[11][0].keys())[0]]):
+                data_dict[0].append(data[:4])
+                data_dict[1].append(excel_2021_datas[11][0][list(excel_2021_datas[11][0].keys())[1]][index])
+        excel_datas.append((data_dict, len(data_dict[0])))
+
+    with open(os.path.join(excel_path, 'excel_datas.txt'), 'w') as file:
+        file.write(str(excel_datas))
+
+
+# 计划id对应企业id，得到三元组头尾
+def plan_id_deal(excel_2021_datas, planid_data):
+    sub_list = []
+    obj_list = []
+    data_except = []
+    # 遍历数据
+    for item in range(len(planid_data[list(planid_data.keys())[0]])):
+        # 查询 planid 对应 enterpriseId
+        for planid in excel_2021_datas[6][0]["planId"]:
+            if planid == planid_data[list(planid_data.keys())[0]][item]:
+                # planid 对应的 enterpriseId
+                # logging.info(excel_datas[index][0]["planId"].index(planid))
+                # logging.info(planid)
+                enterpriseId = excel_2021_datas[6][0]["enterpriseId"][excel_2021_datas[6][0]["planId"].index(planid)]
+                # logging.info(enterpriseId)
+                sub_list.append(enterpriseId)
+                obj_list.append(planid_data[list(planid_data.keys())[1]][item])
+    logging.info("plan_id_deal")
+    logging.info(len(data_except))
+    logging.info(f"{len(sub_list)}, {len(obj_list)}")
+    return sub_list, obj_list
+
+
+# 数据统计——企业去重，id对应企业名，id对应md5值
+def data_stat_id_md5(excel_datas):
+    enterprise_id_dict = {}
+    id_md5_dict = {}
+    for index, enter in enumerate(excel_datas[5][0][1]):
+        if enter not in enterprise_id_dict:
+            enterprise_id_dict[enter] = excel_datas[5][0][0][index]
+            # id 加密，企业的 md5 值
+            md5_hash = hashlib.md5()
+            md5_hash.update(enter.encode("utf-8"))
+            id_md5_dict[excel_datas[5][0][0][index]] = md5_hash.hexdigest()
     # id_enterprise 对应信息字典写入 json
-    id_enterprise_dict = dict(zip(excel_datas[6][0]["entid"], excel_datas[6][0]["entName"]))
+    id_enterprise_dict = dict(zip(enterprise_id_dict.values(), enterprise_id_dict.keys()))
     id_enterprise_dict_json_str = json.dumps(id_enterprise_dict, indent=4, ensure_ascii=False)
     with open(os.path.join(excel_path, 'id_enterprise_dict.json'), 'w') as json_file:
         json_file.write(id_enterprise_dict_json_str)
 
-
-# 数据统计——id的md5加密
-def data_stat_md5(excel_datas):
-    # id 加密 md5
-    id_md5 = []
-    for id in excel_datas[6][0]["entid"]:
-        md5_hash = hashlib.md5()
-        md5_hash.update(id.encode("utf-8"))
-        id_md5.append(md5_hash.hexdigest())
     # id_md5 对应信息字典写入 json
-    id_md5_dict = dict(zip(excel_datas[6][0]["entid"], id_md5))
     id_md5_dict_json_str = json.dumps(id_md5_dict, indent=4, ensure_ascii=False)
     with open(os.path.join(excel_path, 'id_md5_dict.json'), 'w') as json_file:
         json_file.write(id_md5_dict_json_str)
@@ -114,91 +178,26 @@ def get_indust_encode(excel_datas, industry):
             continue
 
 
-# 原料、产品实体链接
-def RawAcc_BEONE(excel_datas):
-    # id_enterprise 对应信息字典写入 json
-    rawacc_beone_dict = {}
-    data_item_except = []
-    data_except = []
-    delimiters = ["、", "（", "）"]
-    # 加载模型
-    BBc = BertBaseChinese("./bert-base-chinese", "cuda:1")
-    # 加载数据，去重
-    excel_data = list(set(excel_datas[4][0]["materialName"] + excel_datas[5][0]["productName"]))
-    catalogue_data = excel_datas[8][0][str(5)]
-    logging.info(f"excel_data_data：{len(excel_data)}")
-    logging.info(f"catalogue_data：{len(catalogue_data)}")
-    # 进度条及预估时间
-    start_time = time.time()
-    current = 0
-    total = len(excel_data)
-    progress_bar(start_time, total, current)
-    for rawacc_mal in excel_data:
-        current += 1
-        if current % 10 == 0:
-            progress_bar(start_time, total, current)
-
-        # 分割内容
-        regex_pattern = '|'.join(map(re.escape, delimiters))
-        rawacc_list = re.split(regex_pattern, rawacc_mal.strip().replace(" ", ""))
-        for rawacc in rawacc_list:
-            if rawacc and rawacc not in rawacc_beone_dict:
-                rawacc_temp = None
-                match_ratio = 0.0
-
-                similarities = BBc.train(
-                    [rawacc for _ in range(len(catalogue_data))],
-                    excel_datas[8][0][str(5)], batch_size=1024 * 13
-                )
-
-                for index, similar in enumerate(similarities):
-                    if similar > match_ratio:
-                        match_ratio = similar
-                        rawacc_temp = catalogue_data[index]
-
-                if match_ratio >= 0.9:
-                    rawacc_beone_dict[rawacc] = rawacc_temp
-                else:
-                    data_except.append(rawacc)
-            else:
-                data_item_except.append(rawacc_mal)
-    rawacc_beone_dict_json_str = json.dumps(rawacc_beone_dict, indent=4, ensure_ascii=False)
-    with open(os.path.join(excel_path, 'rawacc_beone_dict.json'), 'w') as json_file:
-        json_file.write(rawacc_beone_dict_json_str)
-
-
 # 划分数据集
-def dataset_part(excel_datas):
-    # excel_datas[0][0] = {
-    #     "enterprise": [],
-    #     "industry": [],
-    # }
-    # excel_datas[0][1...] = {
-    #     "enterprise": [],
-    #     "Ematerial": [],
-    #     "Eproduct": [],
-    #     "Ekeyword": [],
-    #     "Etechnology": [],
-    # }
-    industry_dict = {item: [] for item in excel_datas[0][0][list(excel_datas[0][0].keys())[1]]}
-    industry_train_dict = {item: [] for item in excel_datas[0][0][list(excel_datas[0][0].keys())[1]]}
-    industry_valid_dict = {item: [] for item in excel_datas[0][0][list(excel_datas[0][0].keys())[1]]}
+def dataset_part(excel_datas, id_enterprise_dict, id_md5_dict):
+    industry_dict = {item: [] for item in excel_datas[0][0][1]}
+    industry_train_dict = {item: [] for item in excel_datas[0][0][1]}
+    industry_valid_dict = {item: [] for item in excel_datas[0][0][1]}
     data_except = []
     # 字典数据写入数据集字典
-    for item in range(excel_datas[0][1]):
+    for id in list(id_enterprise_dict.keys()):
         try:
-            if excel_datas[9][0]["entType"][item] == "QYSX_CF":
-                industry_dict[excel_datas[0][0][list(excel_datas[0][0].keys())[1]][item]].append(item)
+            entType_Temp = excel_datas[3][0][1][excel_datas[3][0][0].index(id)]
+            industry_Temp = excel_datas[0][0][1][excel_datas[0][0][0].index(id)]
+            if entType_Temp == "QYSX_CF":
+                industry_dict[industry_Temp].append(id)
         except:
-            data_except.append(excel_datas[9][0]["entType"][item])
+            data_except.append(id)
             continue
-    # 获取企业行业小类及其频次
-    with open(os.path.join(excel_path, 'industry_class_S_sort_dict.json'), 'r') as json_file:
-        industry_class_S_sort_dict = json.loads(str(json_file.read()))
     # 划分数据集
-    # 为保证数据质量，只取行业填选完整的企业，且行业小类至少有两家企业
-    for key in list(industry_class_S_sort_dict.keys()):
-        if int(industry_class_S_sort_dict[key]) > 1:
+    # 为保证数据质量，只取行业填选完整的企业，且行业小类至少有五家企业
+    for key in list(industry_dict.keys()):
+        if int(industry_dict[key]) >= 5:
             result = split_list(industry_dict[key], train_ratio, 2)
             industry_train_dict[key] = result[0]
             industry_valid_dict[key] = result[1]
@@ -270,44 +269,6 @@ def dealRawAcc_BERT_dict(excel_datas, excel_data):
     logging.info(data_except)
     logging.info("\n")
     return planids_ex, rawaccs_ex
-
-
-# 企业id处理，从而获取企业对应于excel_datas中指定数据的index
-def ent_id_deal(excel_datas, index, item):
-    item_index = False
-    ent_id = excel_datas[0][0][list(excel_datas[0][0].keys())[0]][item]
-    if ent_id in excel_datas[index][0][list(excel_datas[index][0].keys())[0]]:
-        item_index = excel_datas[index][0][list(excel_datas[index][0].keys())[0]].index(ent_id)
-    return item_index
-
-
-# 计划id对应企业id，得到三元组头尾
-def plan_id_deal(excel_datas, planid_data, index, data_list):
-    sub_list = []
-    obj_list = []
-    data_except = []
-    # 遍历数据
-    for item in range(len(planid_data[0])):
-        # 查询 planid 对应 enterpriseId
-        for planid in excel_datas[index][0]["planId"]:
-            if planid == planid_data[0][item]:
-                # planid 对应的 enterpriseId
-                # logging.info(excel_datas[index][0]["planId"].index(planid))
-                # logging.info(planid)
-                enterpriseId = excel_datas[index][0]["enterpriseId"][excel_datas[index][0]["planId"].index(planid)]
-                # logging.info(enterpriseId)
-                # enterpriseId 是否在该数据集
-                try:
-                    if excel_datas[0][0]["entid"].index(enterpriseId) in data_list:
-                        sub_list.append(enterpriseId)
-                        obj_list.append(planid_data[1][item])
-                except:
-                    data_except.append(enterpriseId)
-                    continue
-    logging.info("plan_id_deal")
-    logging.info(len(data_except))
-    logging.info(len(sub_list), len(obj_list))
-    return sub_list, obj_list
 
 
 # 写入txt文件
@@ -466,56 +427,46 @@ def write_train_txt(all_data, dataset_part_dict):
                 valid_data_triples["obj"].append(data[0][2][index])
 
 
-# 进度条函数
-def progress_bar(start_time, total, current):
-    bar_length = 50  # 进度条的长度
-    percent = floor(current / total * 100)
-    if percent > 100:
-        percent = 100
-    bar = ''.join(["#" for _ in range(int(bar_length * current / total))])
-    logging.info("\r[{}->{}] {}% {}".format(bar, ' ' * (bar_length - len(bar)), percent, time_to_complete(start_time, total, current)))
-
-
-# 估算剩余时间
-def time_to_complete(start_time, total, current):
-    if current > 0:
-        dur_per_item = (time.time() - start_time) / current
-        remaining = total - current
-        m, s = divmod(dur_per_item * remaining, 60)
-        h, m = divmod(m, 60)
-        return "Remaining: %02d:%02d:%02d" % (h, m, s)
-    else:
-        return "Estimated time to complete"
-
-
 if __name__ == '__main__':
     # 设置输出日志
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
     train_ratio = [0.8, 0.2]
 
     # 获取数据
-    excel_path = r"./datasets/knowgraph/"
-    # list 为文件名，0,1,2,3,4,5,6,
-    excel_datas = read_csv(excel_path, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-
-    # # 数据统计——id对应企业名：id_enterprise_dict.json
-    # data_stat_id(excel_datas)
-    # # 数据统计——id的md5加密：id_md5_dict.json
-    # data_stat_md5(excel_datas)
+    excel_path = r"../datasets/knowgraph/"
+    # # list 为文件名，0,1,2,3,4,5,6,
+    # excel_2021_datas = read_csv(excel_path, [
+    #     "2021/0", "2021/1", "2021/2", "2021/9", "2021/11", "2021/6", "2021/3", "2021/4", "2021/5", "2021/7", "2021/8", "2021/10"
+    # ])
+    # excel_2022_datas = read_csv(excel_path, [
+    #     "2022/0", "2022/1", "2022/2", "2022/6", "2022/10", "2022/5", "2022/3", "2022/4", "2022/7", "2022/8", "2022/9"
+    # ])
+    # # 数据整合——全部数据：excel_datas.txt
+    # excel_datas = data_merge(excel_2021_datas, excel_2022_datas)
+    # 读取全部数据
+    with open(os.path.join(excel_path, 'excel_datas.txt'), 'r') as file:
+        excel_datas = eval(file.read())
+    # 数据统计——id对应企业名：id_enterprise_dict.json、id对应md5值：id_md5_dict.json
+    data_stat_id_md5(excel_datas)
+    # # 获取id对应企业名
+    # with open(os.path.join(excel_path, 'id_enterprise_dict.json'), 'r') as json_file:
+    #     id_enterprise_dict = json.loads(str(json_file.read()))
+    # # 获取id对应md5值
+    # with open(os.path.join(excel_path, 'id_md5_dict.json'), 'r') as json_file:
+    #     id_md5_dict = json.loads(str(json_file.read()))
     # # 数据统计——行业统计：industry_class_B_sort_dict.json、industry_class_S_sort_dict.json、data_stat_industry_except.txt
-    #
     # data_stat_industry(excel_datas)
-    # # 划分数据集
-    # dataset_part(excel_datas)
+    # 划分数据集
+    dataset_part(excel_datas, id_enterprise_dict, id_md5_dict)
+    # # 获取数据集划分
+    # with open(os.path.join(excel_path, 'dataset_part_dict.json'), 'r') as json_file:
+    #     dataset_part_dict = json.loads(str(json_file.read()))
     # # 原料、产品实体链接：rawacc_beone_dict.json
     # RawAcc_BEONE(excel_datas)
 
-    # 知识图谱及模型训练
-    # 获取数据集划分
-    with open(os.path.join(excel_path, 'dataset_part_dict.json'), 'r') as json_file:
-        dataset_part_dict = json.loads(str(json_file.read()))
-    # 所有数据写入 txt，list 为读取到的数据在 excel_datas 中的位置0, 10, 1, 2, 4, 5
-    write_all_txt(excel_datas, dataset_part_dict["all"], [4, 5])
+    # # 知识图谱及模型训练
+    # # 所有数据写入 txt，list 为读取到的数据在 excel_datas 中的位置0, 10, 1, 2, 4, 5
+    # write_all_txt(excel_datas, dataset_part_dict["all"], [4, 5])
 
     # # 训练数据写入 txt
     # # list 为文件名，"0_all", "1_all", "2_all", "4_all", "5_all", "10_all"

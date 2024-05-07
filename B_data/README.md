@@ -42,3 +42,12 @@ https://www.zhihu.com/question/320606353/answer/2259894950
 
 BERT+BILSTM+CRF是目前最好的命名实体识别模型之一么?
 https://www.zhihu.com/question/452002433/answer/2327252882
+
+基于bert的中文实体链接
+https://github.com/taishan1994/pytorch_bert_entity_linking
+
+BERT预训练模型的使用
+https://blog.csdn.net/JamesX666/article/details/126461206
+
+利用Python实现汉译英的三种方法
+https://blog.csdn.net/xun527/article/details/132057602

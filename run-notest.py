@@ -161,6 +161,10 @@ class Runner(object):
             self.device = torch.device('cpu')
 
         self.load_data()
+        self.logger.info(f"num_ent: {self.p.num_ent}")
+        self.logger.info(f"num_rel: {self.p.num_rel}")
+        self.logger.info(f"num_train: {len(self.data['train'])}")
+        self.logger.info(f"num_valid: {len(self.data['valid'])}")
         self.model = self.add_model(self.p.model, self.p.score_func)
         self.optimizer = self.add_optimizer(self.model.parameters())
 
@@ -532,7 +536,7 @@ if __name__ == '__main__':
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('-name', default='testrun', help='Set run name for saving/restoring models')
-    parser.add_argument('-data', dest='dataset', default='FB15k-237', help='Dataset to use, default: FB15k-237, knowgraph')
+    parser.add_argument('-data', dest='dataset', default='knowgraph/max/all/', help='Dataset to use, default: FB15k-237, knowgraph/max/all/')
     parser.add_argument('-model', dest='model', default='CompGCN', help='Model Name')
     parser.add_argument('-score_func', dest='score_func', default='conve', help='Score Function for Link prediction')
     parser.add_argument('-opn', dest='opn', default='sub', help='Composition Operation to be used in CompGCN')

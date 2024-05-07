@@ -22,8 +22,10 @@ cd /home/GXW/code/pytorch/knowgraph/B_data
 # 不使用测试集
 nohup python -u ./run-notest.py > /dev/null 2>&1 &
 kill -9 $(pgrep -f './run-notest.py')
-nohup python -u datadeal-notest.py >> ./run.log 2>&1 &
-kill -9 $(pgrep -f 'datadeal-notest.py')
+nohup python -u datadeal-allDD-notest.py >> ./run.log 2>&1 &
+kill -9 $(pgrep -f 'datadeal-allDD-notest.py')
+nohup python -u RawAccdeal-BERT.py >> ./BERT_run.log 2>&1 &
+kill -9 $(pgrep -f 'RawAccdeal-BERT.py')
 
 # 使用测试集
 nohup python -u ./run.py > /dev/null 2>&1 &

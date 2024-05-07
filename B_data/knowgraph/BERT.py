@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import time
 import torch
 import logging
 import numpy as np
 from transformers import BertTokenizer, BertModel
 
 
-class BertBaseChinese():
+class BertBase():
     def __init__(self, model_name, device):
         # 设置输出日志
         logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
@@ -27,7 +28,12 @@ class BertBaseChinese():
 
     def train(self, sentences1, sentences2, batch_size=32):
         # 按照每批32个句子对计算相似度
-        similarities = self.batch_compare_sentences(sentences1, sentences2, batch_size)
+        try:
+            similarities = self.batch_compare_sentences(sentences1, sentences2, batch_size)
+        except:
+            # 显存释放机制
+            torch.cuda.empty_cache()
+            similarities = self.batch_compare_sentences(sentences1, sentences2, batch_size)
 
         # logging.info(f"batch_size：{batch_size}")
 
@@ -106,6 +112,9 @@ class BertBaseChinese():
             # 将批次内每个句子对的相似度添加到结果容器
             similarities.extend(batch_similarities.cpu().numpy())
 
+            # delete caches
+            del encoded_inputs1, encoded_inputs2, input_ids1, input_ids2, outputs1, outputs2, attention_mask1, attention_mask2
+
         # 返回所有批次计算出的相似度结果
         return np.array(similarities)
 
@@ -116,5 +125,5 @@ if __name__ == '__main__':
     sentences1 = ["玻璃纤维", "玻璃纤维", "玻璃纤维", "玻璃纤维", "玻璃纤维", "黄河南大街70号8门", "另一个句子1", "更多句子..."]
     # 与sentences1长度相同
     sentences2 = ["玻璃纤维及其制品", "玻璃纤维纱", "玻璃纤维布", "玻璃纤维毡", "玻璃纤维带", "皇姑区黄河南大街70号8门", "另一个句子2", "更多句子..."]
-    BBc = BertBaseChinese("./bert-base-chinese", "cuda:0")
+    BBc = BertBase("./bert-base-chinese", "cuda:0")
     BBc.train(sentences1, sentences2, batch_size=32)
