@@ -27,10 +27,10 @@ class CompGCNConvBasis(MessagePassing):
         self.drop = torch.nn.Dropout(self.p.dropout)
         self.bn = torch.nn.BatchNorm1d(out_channels)
 
-        self.in_norm, self.out_norm,
-        self.in_index, self.out_index,
-        self.in_type, self.out_type,
-        self.loop_index, self.loop_type = None, None, None, None, None, None, None, None
+        self.in_norm, self.out_norm, \
+        self.in_index, self.out_index, \
+        self.in_type, self.out_type, \
+        self.loop_index, self.loop_type, self.b_norm = None, None, None, None, None, None, None, None, None
 
         if self.p.bias: self.register_parameter('bias', Parameter(torch.zeros(out_channels)))
 
@@ -75,7 +75,8 @@ class CompGCNConvBasis(MessagePassing):
         elif self.p.opn == 'mult':
             trans_embed = ent_embed * rel_embed
         else:
-            raise NotImplementedError
+            print("error")
+            # raise NotImplementedError
 
         return trans_embed
 

@@ -16,17 +16,11 @@ try:
     from torch import irfft
     from torch import rfft
 except ImportError:
-    from torch.fft import irfft2
-    from torch.fft import rfft2
-
-
     def rfft(x, d):
-        t = rfft2(x, dim=(-d))
+        t = torch.fft.fft(x, dim=-d)
         return torch.stack((t.real, t.imag), -1)
-
-
     def irfft(x, d, signal_sizes):
-        return irfft2(torch.complex(x[:, :, 0], x[:, :, 1]), s=signal_sizes, dim=(-d))
+        return torch.fft.ifft(torch.complex(x[:, :, 0], x[:, :, 1]), n=signal_sizes, dim=-d)
 
 np.set_printoptions(precision=4)
 
@@ -95,7 +89,7 @@ def get_combined_results(left_results, right_results):
 
 
 def get_param(shape):
-    param = Parameter(torch.Tensor(*shape));
+    param = Parameter(torch.Tensor(*shape))
     xavier_normal_(param.data)
     return param
 
@@ -112,8 +106,8 @@ def conj(a):
 
 
 def cconv(a, b):
-    return irfft(com_mult(rfft(a, 1), rfft(b, 1)), 1, signal_sizes=(a.shape[-1],))
+    return irfft(com_mult(rfft(a, 1), rfft(b, 1)), 1, signal_sizes=a.shape[-1],)
 
 
 def ccorr(a, b):
-    return irfft(com_mult(conj(rfft(a, 1)), rfft(b, 1)), 1, signal_sizes=(a.shape[-1],))
+    return irfft(com_mult(conj(rfft(a, 1)), rfft(b, 1)), 1, signal_sizes=a.shape[-1],)

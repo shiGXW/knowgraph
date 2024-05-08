@@ -34,7 +34,7 @@ class Runner(object):
 
         ent_set, rel_set = OrderedSet(), OrderedSet()
         for split in ['train', 'valid']:
-            for line in open(self.p.data_dir + '{}/{}.txt'.format(self.p.dataset, split)):
+            for line in open(self.p.data_dir + '{}/all/{}.txt'.format(self.p.dataset, split)):
                 sub, rel, obj = map(str.lower, line.strip().split('\t'))
                 ent_set.add(sub)
                 rel_set.add(rel)
@@ -55,7 +55,7 @@ class Runner(object):
         sr2o = ddict(set)
 
         for split in ['train', 'valid']:
-            for line in open(self.p.data_dir + '{}/{}.txt'.format(self.p.dataset, split)):
+            for line in open(self.p.data_dir + '{}/all/{}.txt'.format(self.p.dataset, split)):
                 sub, rel, obj = map(str.lower, line.strip().split('\t'))
                 sub, rel, obj = self.ent2id[sub], self.rel2id[rel], self.ent2id[obj]
                 self.data[split].append((sub, rel, obj))
@@ -290,7 +290,7 @@ class Runner(object):
         obj_total = np.array(obj_total, dtype=np.int32)
         label_total = np.array(label_total, dtype=np.int32)
         rel_index = np.where(rel_total == rel_flag)
-        rel_list = ["industry", "wasteHW", "waste", "pianid", "material", "product"]
+        rel_list = ["industry", "areacode", "HW", "waste", "material", "product", "HWwaste"]
         # sub_total, rel_total, obj_total, label_total
         # 头，关系，尾，头与关系对应的全部尾的索引(第二位为 entid )
         # sub_total = [ 5962, 98, 1246, 5063, 6696, ... ]
@@ -306,19 +306,23 @@ class Runner(object):
             rel_list[rel_flag] + "_accuracy": [],
         }
         # id_labels_total = { "0": [ 27, 32, 75, 92, 119 ], ... }
-        # 获取 enterid 对应的企业名
+        # 获取 md5 值对应的真实id
+        with open(os.path.join(self.p.data_dir + self.p.dataset, 'id_md5_dict.json'), 'r') as json_file:
+            id_md5_dict = json.loads(str(json_file.read()))
+            enterid2id_dict = dict(zip(id_md5_dict.values(), id_md5_dict.keys()))
+        # 获取 id 对应企业名
         with open(os.path.join(self.p.data_dir + self.p.dataset, 'id_enterprise_dict.json'), 'r') as json_file:
-            enterid2enterprise_dict = json.loads(str(json_file.read()))
+            id2enterprise_dict = json.loads(str(json_file.read()))
 
         pred_industry_total = {}
         true_industry_total = {}
         for item in rel_index[0]:
             # 写入 Set
-            export_info["enter"].append(enterid2enterprise_dict[self.id2ent[sub_total[item]]])
+            export_info["enter"].append(id2enterprise_dict[enterid2id_dict[self.id2ent[sub_total[item]]]])
             export_info["enterid"].append(self.id2ent[sub_total[item]])
             # 处理 pred_industry
             # 预测阈值
-            print(target_pred_total[item])
+            # print(target_pred_total[item])
             if target_pred_total[item] >= self.p.accuracy_th:
                 if sub_total[item] in pred_industry_total.keys():
                     pred_industry_total[str(sub_total[item])].append(self.id2ent[obj_total[item]])
@@ -373,13 +377,13 @@ class Runner(object):
             results['hits@k']:      Probability of getting the correct preodiction in top-k ranks based on predicted score
 
         """
-        left_results = self.predict(split=split, mode='tail_batch')
-        # left_results, sub_total, rel_total, obj_total, target_pred_total, label_total = self.predict(split=split, mode='tail_batch')
+        # left_results = self.predict(split=split, mode='tail_batch')
+        left_results, sub_total, rel_total, obj_total, target_pred_total, label_total = self.predict(split=split, mode='tail_batch')
         right_results = self.predict(split=split, mode='head_batch')
         results = get_combined_results(left_results, right_results)
         self.logger.info('[Epoch {} {}]: MRR: Tail : {:.5f}, Head : {:.5f}, Avg : {:.5f}\n'.format(
             epoch, split, results['left_mrr'], results['right_mrr'], results['mrr']))
-        # self.save_csv(sub_total, rel_total, obj_total, target_pred_total, label_total, results, rel_flag=0)
+        self.save_csv(sub_total, rel_total, obj_total, target_pred_total, label_total, results, rel_flag=0)
         return results
 
     def predict(self, split='valid', mode='tail_batch'):
@@ -418,7 +422,7 @@ class Runner(object):
                 b_range = torch.arange(pred.size()[0], device=self.device)
                 # 预测概率——对应于每一个 obj
                 target_pred = pred[b_range, obj]
-                if mode == 'tail_batch' and self.p.dataset == 'knowgraph':
+                if mode == 'tail_batch':
                     # 存入三元组
                     sub_total = np.concatenate((sub_total, sub.cpu()), axis=0)
                     rel_total = np.concatenate((rel_total, rel.cpu()), axis=0)
@@ -431,7 +435,7 @@ class Runner(object):
                         label_nonzero[index, 1] = label_nonzero[index, 1]
                     label_total = np.concatenate((label_total, label_nonzero), axis=0)
                     target_pred_total = np.concatenate((target_pred_total, target_pred.cpu()), axis=0)
-                pred = torch.where(label.byte(), -torch.ones_like(pred) * 10000000, pred)
+                pred = torch.where(label.bool(), -torch.ones_like(pred) * 10000000, pred)
                 pred[b_range, obj] = target_pred
                 ranks = 1 + torch.argsort(
                     torch.argsort(pred, dim=1, descending=True), dim=1, descending=False
@@ -444,9 +448,9 @@ class Runner(object):
                 for k in range(10):
                     results['hits@{}'.format(k + 1)] = torch.numel(ranks[ranks <= (k + 1)]) + results.get('hits@{}'.format(k + 1), 0.0)
 
-                if step % 100 == 0:
+                if step % self.p.print_fre == 0:
                     self.logger.info('[{}| {} Step {}]\t{}'.format(split.title(), mode.title(), step, results['mrr']))
-        if mode == 'tail_batch' and self.p.dataset == 'knowgraph':
+        if mode == 'tail_batch':
             return results, sub_total, rel_total, obj_total, target_pred_total, label_total
         else:
             return results
@@ -478,7 +482,7 @@ class Runner(object):
             self.optimizer.step()
             losses.append(loss.item())
 
-            if step % 100 == 0:
+            if step % self.p.print_fre == 0:
                 self.logger.info('[Epoch:{}| {}]: Train Loss:{:.5f}'.format(epoch, step, np.mean(losses)))
 
         loss = np.mean(losses)
@@ -518,7 +522,7 @@ class Runner(object):
                 if kill_cnt % 10 == 0 and self.p.gamma > 5:
                     self.p.gamma -= 5
                     self.logger.info('Gamma decay on saturation, updated value of gamma: {}'.format(self.p.gamma))
-                if kill_cnt > 500:
+                if kill_cnt > 50:
                     self.logger.info("Early Stopping!!")
                     break
 
@@ -536,12 +540,13 @@ if __name__ == '__main__':
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('-name', default='testrun', help='Set run name for saving/restoring models')
-    parser.add_argument('-data', dest='dataset', default='knowgraph/max/all/', help='Dataset to use, default: FB15k-237, knowgraph/max/all/')
+    parser.add_argument('-data', dest='dataset', default='knowgraph/max/', help='Dataset to use, default: FB15k-237, knowgraph/max/')
     parser.add_argument('-model', dest='model', default='CompGCN', help='Model Name')
     parser.add_argument('-score_func', dest='score_func', default='conve', help='Score Function for Link prediction')
-    parser.add_argument('-opn', dest='opn', default='sub', help='Composition Operation to be used in CompGCN')
+    parser.add_argument('-opn', dest='opn', default='mult', help='Composition Operation to be used in CompGCN：sub, mult, corr')
 
-    parser.add_argument('-batch', dest='batch_size', default=128, type=int, help='Batch size')
+    parser.add_argument('-batch', dest='batch_size', default=896, type=int, help='Batch size: 256, 896, 1664')
+    parser.add_argument('-print', dest='print_fre', default=10, type=int, help='Printing frequency：Batch num')
     parser.add_argument('-gamma', type=float, default=40.0, help='Margin')
     parser.add_argument('-gpu', type=str, default='0', help='Set GPU Ids : Eg: For CPU = -1, For Single GPU = 0, 1')
     parser.add_argument('-epoch', dest='max_epochs', type=int, default=500, help='Number of epochs')
@@ -551,8 +556,8 @@ if __name__ == '__main__':
     parser.add_argument('-lr_scheduler', dest='lr_scheduler', type=bool, default=False, help='Label Smoothing')
     # MultiStepLR的参数
     # 设置学习率降低的epoch位置
-    # [16, 22], [6, 16],
-    parser.add_argument('--lr-steps', type=int, default=[50, 100, 150, 200, 300], nargs='+',
+    # [16, 22], [6, 16], [50, 100, 150, 200, 300]
+    parser.add_argument('--lr-steps', type=int, default=[100, 200, 350, 400, 450], nargs='+',
                         help='decrease lr every step-size epochs')
     # 学习率衰减的倍数
     parser.add_argument('--lr-gamma', type=float, default=0.1,
@@ -566,8 +571,8 @@ if __name__ == '__main__':
     parser.add_argument('-restore', dest='restore', action='store_true', help='Restore from the previously saved model')
     parser.add_argument('-bias', dest='bias', action='store_true', help='Whether to use bias in the model')
 
-    parser.add_argument('-num_bases', dest='num_bases', default=-1, type=int,
-                        help='Number of basis relation vectors to use')
+    parser.add_argument('-num_bases', dest='num_bases', default=7, type=int,
+                        help='Number of basis relation vectors to use: -1, 7')
     parser.add_argument('-init_dim', dest='init_dim', default=200, type=int,
                         help='Initial dimension size for entities and relations')
     parser.add_argument('-gcn_dim', dest='gcn_dim', default=150, type=int, help='Number of hidden units in GCN')
