@@ -31,9 +31,15 @@ class BertBase():
         try:
             similarities = self.batch_compare_sentences(sentences1, sentences2, batch_size)
         except:
-            # 显存释放机制
-            torch.cuda.empty_cache()
-            similarities = self.batch_compare_sentences(sentences1, sentences2, batch_size)
+            try:
+                # 显存释放机制
+                torch.cuda.empty_cache()
+                similarities = self.batch_compare_sentences(sentences1, sentences2, batch_size)
+            except:
+                time.sleep(1000)
+                # 显存释放机制
+                torch.cuda.empty_cache()
+                similarities = self.batch_compare_sentences(sentences1, sentences2, batch_size)
 
         # logging.info(f"batch_size：{batch_size}")
 

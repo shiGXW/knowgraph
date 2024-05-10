@@ -51,3 +51,11 @@ https://blog.csdn.net/JamesX666/article/details/126461206
 
 利用Python实现汉译英的三种方法
 https://blog.csdn.net/xun527/article/details/132057602
+
+面向中文的BERT预训练模型
+https://zhuanlan.zhihu.com/p/349732075
+https://github.com/ymcui/Chinese-BERT-wwm
+https://github.com/ShenDezhou/Chinese-PreTrained-BERT#%E6%A8%A1%E5%9E%8B%E4%B8%8B%E8%BD%BD
+
+谷歌最强NLP模型BERT如约开源，12小时GitHub标星破1500，即将支持中文
+https://zhuanlan.zhihu.com/p/48203943

@@ -1,4 +1,3 @@
-from torch import nn
 from helper import *
 from C_models.compgcn_conv import CompGCNConv
 from C_models.compgcn_conv_basis import CompGCNConvBasis
@@ -137,74 +136,31 @@ class CompGCN_ConvE(CompGCNBase):
         return x
 
 
-class PositionalEncoding(nn.Module):
-    """位置编码"""
-    def __init__(self, num_hiddens, dropout, max_len=1000):
-        super(PositionalEncoding, self).__init__()
-        self.dropout = nn.Dropout(dropout)
-        # 创建一个足够长的P
-        self.P = torch.zeros((1, max_len, num_hiddens))
-        X = torch.arange(max_len, dtype=torch.float32).reshape(
-            -1, 1) / torch.pow(10000, torch.arange(
-            0, num_hiddens, 2, dtype=torch.float32) / num_hiddens)
-        self.P[:, :, 0::2] = torch.sin(X)
-        self.P[:, :, 1::2] = torch.cos(X)
-
-    def forward(self, X):
-        X = X + self.P[:, :X.shape[1], :].to(X.device)
-        return self.dropout(X)
-
-
 class CompGCN_Transformer(CompGCNBase):
     def __init__(self, edge_index, edge_type, params=None):
         super(self.__class__, self).__init__(edge_index, edge_type, params.num_rel, params)
 
-        self.hidden_drop = torch.nn.Dropout(self.p.T_hid_drop)
-        self.feature_drop = torch.nn.Dropout(self.p.T_feat_drop)
-
-        encoder_layers = TransformerEncoderLayer(self.p.embed_dim, self.p.T_num_heads, self.p.T_num_hidden, self.p.T_hid_drop2)
-        self.encoder = TransformerEncoder(encoder_layers, self.p.T_layers)
-        self.position_embedding = PositionalEncoding(self.p.embed_dim, self.p.T_hid_drop2, self.p.T_num_hidden)
-
-        if self.p.T_pooling == "concat":
-            self.flat_sz = self.emb_dim * (self.p.T_flat - 1)
-            self.fc = torch.nn.Linear(self.flat_sz, self.p.embed_dim)
-        else:
-            self.fc = torch.nn.Linear(self.p.embed_dim, self.p.embed_dim)
+        encoder_layers = TransformerEncoderLayer(self.d_model, self.num_heads, self.num_hidden, self.p.HID_DROP2)
+        self.encoder = TransformerEncoder(encoder_layers, self.p.T_LAYERS)
 
     def concat(self, e1_embed, rel_embed):
         e1_embed = e1_embed.view(-1, 1, self.p.embed_dim)
         rel_embed = rel_embed.view(-1, 1, self.p.embed_dim)
-        stack_inp = torch.cat([e1_embed, rel_embed], 1).transpose(1, 0)  # [2 + num_qual_pairs, bs, emb_dim]
+        stack_inp = torch.cat([e1_embed, rel_embed], 1)
+        stack_inp = torch.transpose(stack_inp, 2, 1).reshape((-1, 1, 2 * self.p.k_w, self.p.k_h))
         return stack_inp
-
-    def length_to_mask(self, lengths):
-        # mask which shows which entities were padded - for future purposes, True means to mask (in transformer)
-        # https://github.com/pytorch/pytorch/blob/master/torch/nn/functional.py : 3770
-        # https://blog.csdn.net/vivi_cin/article/details/135413978
-        # https://blog.csdn.net/qq_41139677/article/details/125252352
-        # so we first initialize with False
-        max_len = torch.max(lengths)
-        mask = torch.arange(max_len, device=lengths.device).expand(lengths.shape[0], max_len) < lengths.unsqueeze(1)
-        return mask
 
     def forward(self, sub, rel):
         sub_emb, rel_emb, all_ent = self.forward_base(sub, rel, self.hidden_drop, self.feature_drop)
         stk_inp = self.concat(sub_emb, rel_emb)
 
-        # mask = self.length_to_mask(lengths) == False
-        mask = None
+        x = self.encoder(stk_inp, src_key_padding_mask=None)
 
-        if self.p.T_positional:
-            hidden_states = self.position_embedding(stk_inp)
-
-        x = self.encoder(hidden_states, src_key_padding_mask=mask)
-
-        if self.p.T_pooling == 'concat':
+        if self.pooling == 'concat':
             x = x.transpose(1, 0).reshape(-1, self.flat_sz)
-        elif self.p.T_pooling == "avg":
+        elif self.pooling == "avg":
             x = torch.mean(x, dim=0)
-        elif self.p.T_pooling == "min":
+        elif self.pooling == "min":
             x, _ = torch.min(x, dim=0)
 
         x = self.fc(x)

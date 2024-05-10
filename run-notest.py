@@ -200,6 +200,8 @@ class Runner(object):
             model = CompGCN_DistMult(self.edge_index, self.edge_type, params=self.p)
         elif model_name.lower() == 'compgcn_conve':
             model = CompGCN_ConvE(self.edge_index, self.edge_type, params=self.p)
+        elif model_name.lower() == 'compgcn_transformer':
+            model = CompGCN_Transformer(self.edge_index, self.edge_type, params=self.p)
         else:
             raise NotImplementedError
 
@@ -542,7 +544,7 @@ if __name__ == '__main__':
     parser.add_argument('-name', default='testrun', help='Set run name for saving/restoring models')
     parser.add_argument('-data', dest='dataset', default='knowgraph/max/', help='Dataset to use, default: FB15k-237, knowgraph/max/')
     parser.add_argument('-model', dest='model', default='CompGCN', help='Model Name')
-    parser.add_argument('-score_func', dest='score_func', default='conve', help='Score Function for Link prediction')
+    parser.add_argument('-score_func', dest='score_func', default='Transformer', help='Score Function for Link prediction')
     parser.add_argument('-opn', dest='opn', default='mult', help='Composition Operation to be used in CompGCN：sub, mult, corr')
 
     parser.add_argument('-batch', dest='batch_size', default=896, type=int, help='Batch size: 256, 896, 1664')
@@ -551,7 +553,8 @@ if __name__ == '__main__':
     parser.add_argument('-gpu', type=str, default='0', help='Set GPU Ids : Eg: For CPU = -1, For Single GPU = 0, 1')
     parser.add_argument('-epoch', dest='max_epochs', type=int, default=500, help='Number of epochs')
     parser.add_argument('-l2', type=float, default=0.0, help='L2 Regularization for Optimizer')
-    parser.add_argument('-lr', type=float, default=0.01, help='Starting Learning Rate')
+    # 0.01
+    parser.add_argument('-lr', type=float, default=0.0001, help='Starting Learning Rate')
     # 针对torch.optim.lr_scheduler
     parser.add_argument('-lr_scheduler', dest='lr_scheduler', type=bool, default=False, help='Label Smoothing')
     # MultiStepLR的参数
@@ -575,9 +578,9 @@ if __name__ == '__main__':
                         help='Number of basis relation vectors to use: -1, 7')
     parser.add_argument('-init_dim', dest='init_dim', default=200, type=int,
                         help='Initial dimension size for entities and relations')
-    parser.add_argument('-gcn_dim', dest='gcn_dim', default=150, type=int, help='Number of hidden units in GCN')
-    parser.add_argument('-embed_dim', dest='embed_dim', default=None, type=int,
+    parser.add_argument('-embed_dim', dest='embed_dim', default=200, type=int,
                         help='Embedding dimension to give as input to score function')
+    parser.add_argument('-gcn_dim', dest='gcn_dim', default=150, type=int, help='Number of hidden units in GCN')
     parser.add_argument('-gcn_layer', dest='gcn_layer', default=2, type=int, help='Number of GCN Layers to use')
     parser.add_argument('-gcn_drop', dest='dropout', default=0.1, type=float, help='Dropout to use in GCN Layer')
     parser.add_argument('-hid_drop', dest='hid_drop', default=0.1, type=float, help='Dropout after GCN')
@@ -590,6 +593,17 @@ if __name__ == '__main__':
     parser.add_argument('-num_filt', dest='num_filt', default=200, type=int,
                         help='ConvE: Number of filters in convolution')
     parser.add_argument('-ker_sz', dest='ker_sz', default=5, type=int, help='ConvE: Kernel size to use')
+
+    # Transformer specific hyperparameters
+    parser.add_argument('-T_layers', dest='T_layers', default=8, type=int, help='Transformer: layers')
+    parser.add_argument('-T_num_heads', dest='T_num_heads', default=4, type=int, help='Transformer: num_heads')
+    parser.add_argument('-T_num_hidden', dest='T_num_hidden', default=2048, type=int, help='Transformer: num_hidden')
+    parser.add_argument('-T_hid_drop2', dest='T_hid_drop2', default=0.3, type=float, help='Transformer: Hidden dropout')
+    parser.add_argument('-T_hid_drop', dest='T_hid_drop', default=0.1, type=float, help='Dropout after GCN')
+    parser.add_argument('-T_feat_drop', dest='T_feat_drop', default=0.3, type=float, help='Transformer: Feature Dropout')
+    parser.add_argument('-T_pooling', dest='T_pooling', default='avg', type=str, help='Transformer: min / avg / concat')
+    parser.add_argument('-T_flat', dest='T_flat', default=15, type=int, help='Transformer: num_heads')
+    parser.add_argument('-T_positional', dest='T_positional', default=True, type=bool, help='Transformer: positional')
 
     parser.add_argument('-logdir', dest='log_dir', default='./D_export/log/', help='Log directory')
     parser.add_argument('-checkpointsdir', dest='checkpoints_dir', default='./D_export/checkpoints/', help='Log directory')

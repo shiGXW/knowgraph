@@ -3,6 +3,16 @@
 
 ## 1. 简介
 
+https://github.com/malllabiisc/CompGCN
+
+多元关系知识表示学习进展
+https://zhuanlan.zhihu.com/p/570314075
+
+https://github.com/migalkin/StarE
+
+StarE中C_models、run-StarE放入上级目录即可
+
+
 常用命令
 ```
 # git
@@ -17,14 +27,16 @@ $ git push origin master
 conda activate pytorch
 cd /home/GXW/code/pytorch/knowgraph
 cd /home/GXW/code/pytorch/knowgraph/D_export/log
-cd /home/GXW/code/pytorch/knowgraph/B_data
+cd /home/GXW/code/pytorch/knowgraph/B_data/knowgraph
 
 # 不使用测试集
 nohup python -u ./run-notest.py > /dev/null 2>&1 &
 kill -9 $(pgrep -f './run-notest.py')
+nohup python -u ./run-StarE.py >> ./run-StarE.log 2>&1 &
+kill -9 $(pgrep -f './run-StarE.py')
 nohup python -u datadeal-allDD-notest.py >> ./run.log 2>&1 &
 kill -9 $(pgrep -f 'datadeal-allDD-notest.py')
-nohup python -u RawAccdeal-BERT.py >> ./BERT_run.log 2>&1 &
+nohup python -u RawAccdeal-BERT.py >> ./BERT_max_run.log 2>&1 &
 kill -9 $(pgrep -f 'RawAccdeal-BERT.py')
 
 # 使用测试集
