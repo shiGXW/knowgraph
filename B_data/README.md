@@ -28,6 +28,9 @@ https://blog.csdn.net/fuhanghang/article/details/129524848
 bert词嵌入是基于字还是基于词 词嵌入的方法
 https://blog.51cto.com/u_14555/10084302
 
+BERT模型系列大全解读
+https://zhuanlan.zhihu.com/p/598095233
+
 文本匹配之SimCSE模型
 https://blog.csdn.net/dzysunshine/article/details/124493089
 

@@ -193,6 +193,7 @@ class CompGCN_Transformer(CompGCNBase):
         stk_inp = self.concat(sub_emb, rel_emb)
 
         # mask = self.length_to_mask(lengths) == False
+        # 不使用 mask
         mask = None
 
         if self.p.T_positional:

@@ -15,14 +15,14 @@ class CompGCNConvBasis(MessagePassing):
         self.device = None
         self.cache = cache  # Should be False for graph classification tasks
 
-        self.w_loop = get_param((in_channels, out_channels));
-        self.w_in = get_param((in_channels, out_channels));
-        self.w_out = get_param((in_channels, out_channels));
+        self.w_loop = get_param((in_channels, out_channels))
+        self.w_in = get_param((in_channels, out_channels))
+        self.w_out = get_param((in_channels, out_channels))
 
         self.rel_basis = get_param((self.num_bases, in_channels))
         self.rel_wt = get_param((self.num_rels * 2, self.num_bases))
         self.w_rel = get_param((in_channels, out_channels))
-        self.loop_rel = get_param((1, in_channels));
+        self.loop_rel = get_param((1, in_channels))
 
         self.drop = torch.nn.Dropout(self.p.dropout)
         self.bn = torch.nn.BatchNorm1d(out_channels)
@@ -69,7 +69,8 @@ class CompGCNConvBasis(MessagePassing):
 
     def rel_transform(self, ent_embed, rel_embed):
         if self.p.opn == 'corr':
-            trans_embed = ccorr(ent_embed, rel_embed)
+            trans_embed = circular_correlation(ent_embed, rel_embed)
+            # trans_embed = ccorr(ent_embed, rel_embed).real
         elif self.p.opn == 'sub':
             trans_embed = ent_embed - rel_embed
         elif self.p.opn == 'mult':

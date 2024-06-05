@@ -56,7 +56,8 @@ class CompGCNConv(MessagePassing):
 
     def rel_transform(self, ent_embed, rel_embed):
         if self.p.opn == 'corr':
-            trans_embed = ccorr(ent_embed, rel_embed)
+            trans_embed = circular_correlation(ent_embed, rel_embed)
+            # trans_embed = ccorr(ent_embed, rel_embed).real
         elif self.p.opn == 'sub':
             trans_embed = ent_embed - rel_embed
         elif self.p.opn == 'mult':

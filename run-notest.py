@@ -320,8 +320,8 @@ class Runner(object):
         true_industry_total = {}
         for item in rel_index[0]:
             # 写入 Set
-            export_info["enter"].append(id2enterprise_dict[enterid2id_dict[self.id2ent[sub_total[item]]]])
-            export_info["enterid"].append(self.id2ent[sub_total[item]])
+            export_info["enter"].add(id2enterprise_dict[enterid2id_dict[self.id2ent[sub_total[item]]]])
+            export_info["enterid"].add(self.id2ent[sub_total[item]])
             # 处理 pred_industry
             # 预测阈值
             # print(target_pred_total[item])
@@ -513,9 +513,10 @@ class Runner(object):
             train_loss = self.run_epoch(epoch)
             val_results = self.evaluate('valid', epoch)
 
-            if val_results['mrr'] > self.best_val_mrr:
+            # if val_results['mrr'] > self.best_val_mrr:
+            if val_results['left_mrr'] > self.best_val_mrr:
                 self.best_val = val_results
-                self.best_val_mrr = val_results['mrr']
+                self.best_val_mrr = val_results['left_mrr']
                 self.best_epoch = epoch
                 self.save_model(save_path)
                 kill_cnt = 0
@@ -524,13 +525,15 @@ class Runner(object):
                 if kill_cnt % 10 == 0 and self.p.gamma > 5:
                     self.p.gamma -= 5
                     self.logger.info('Gamma decay on saturation, updated value of gamma: {}'.format(self.p.gamma))
-                if kill_cnt > 50:
+                if kill_cnt > 500:
                     self.logger.info("Early Stopping!!")
                     break
 
             self.logger.info(
-                '[Epoch {}]: lr:{:.9f}, Training Loss: {:.5f}, Valid MRR: {:.5f}, H@10: {:.5f}\n'.format(
-                epoch, self.optimizer.param_groups[0]["lr"], train_loss, val_results['mrr'], val_results['hits@10']))
+                '[Epoch {}]: lr:{:.9f}, Training Loss: {:.5f}, Tail MRR: {:.5f}, H@10: {:.5f}, H@1: {:.5f}\n'.format(
+                    epoch, self.optimizer.param_groups[0]["lr"], train_loss,
+                    val_results['left_mrr'], val_results['hits@10'], val_results['hits@1'])
+            )
 
             # 更新学习率
             self.lr_scheduler.step()
@@ -545,22 +548,26 @@ if __name__ == '__main__':
     parser.add_argument('-data', dest='dataset', default='knowgraph/max/', help='Dataset to use, default: FB15k-237, knowgraph/max/')
     parser.add_argument('-model', dest='model', default='CompGCN', help='Model Name')
     parser.add_argument('-score_func', dest='score_func', default='Transformer', help='Score Function for Link prediction')
-    parser.add_argument('-opn', dest='opn', default='mult', help='Composition Operation to be used in CompGCN：sub, mult, corr')
+    parser.add_argument('-opn', dest='opn', default='corr', help='Composition Operation to be used in CompGCN：sub, mult, corr')
 
-    parser.add_argument('-batch', dest='batch_size', default=896, type=int, help='Batch size: 256, 896, 1664')
+    # ConvE：896
+    # Transformer：1664、2048
+    parser.add_argument('-batch', dest='batch_size', default=2048, type=int, help='Batch size: 256, 896, 1664')
     parser.add_argument('-print', dest='print_fre', default=10, type=int, help='Printing frequency：Batch num')
     parser.add_argument('-gamma', type=float, default=40.0, help='Margin')
     parser.add_argument('-gpu', type=str, default='0', help='Set GPU Ids : Eg: For CPU = -1, For Single GPU = 0, 1')
     parser.add_argument('-epoch', dest='max_epochs', type=int, default=500, help='Number of epochs')
     parser.add_argument('-l2', type=float, default=0.0, help='L2 Regularization for Optimizer')
-    # 0.01
-    parser.add_argument('-lr', type=float, default=0.0001, help='Starting Learning Rate')
+    # ConvE：0.01
+    # Transformer：0.001
+    parser.add_argument('-lr', type=float, default=0.001, help='Starting Learning Rate')
     # 针对torch.optim.lr_scheduler
     parser.add_argument('-lr_scheduler', dest='lr_scheduler', type=bool, default=False, help='Label Smoothing')
     # MultiStepLR的参数
     # 设置学习率降低的epoch位置
-    # [16, 22], [6, 16], [50, 100, 150, 200, 300]
-    parser.add_argument('--lr-steps', type=int, default=[100, 200, 350, 400, 450], nargs='+',
+    # ConvE：[16, 22], [6, 16], [50, 100, 150, 200, 300], [100, 200, 350, 400, 450]
+    # Transformer：[10, 20, 30, 40, 50], [100, 200, 300, 400, 500]
+    parser.add_argument('--lr-steps', type=int, default=[300, 425, 450, 475], nargs='+',
                         help='decrease lr every step-size epochs')
     # 学习率衰减的倍数
     parser.add_argument('--lr-gamma', type=float, default=0.1,
@@ -595,7 +602,7 @@ if __name__ == '__main__':
     parser.add_argument('-ker_sz', dest='ker_sz', default=5, type=int, help='ConvE: Kernel size to use')
 
     # Transformer specific hyperparameters
-    parser.add_argument('-T_layers', dest='T_layers', default=8, type=int, help='Transformer: layers')
+    parser.add_argument('-T_layers', dest='T_layers', default=2, type=int, help='Transformer: layers')
     parser.add_argument('-T_num_heads', dest='T_num_heads', default=4, type=int, help='Transformer: num_heads')
     parser.add_argument('-T_num_hidden', dest='T_num_hidden', default=2048, type=int, help='Transformer: num_hidden')
     parser.add_argument('-T_hid_drop2', dest='T_hid_drop2', default=0.3, type=float, help='Transformer: Hidden dropout')

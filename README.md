@@ -62,6 +62,8 @@ https://blog.csdn.net/qq_50001789/article/details/128974424
 
 调整学习率（torch.optim.lr_scheduler）
 https://blog.csdn.net/qq_40206371/article/details/119910592
+基于FFT计算循环相关的内容
+https://blog.csdn.net/qq_51698536/article/details/131843669
 
 
 ### 3. 论文

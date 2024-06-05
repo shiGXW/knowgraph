@@ -2,7 +2,7 @@ import numpy as np, sys, os, random, pdb, json, uuid, time, argparse
 from pprint import pprint
 import logging, logging.config
 from collections import defaultdict as ddict
-from ordered_set import OrderedSet
+from orderedset import OrderedSet
 
 # PyTorch related imports
 import torch
@@ -111,3 +111,18 @@ def cconv(a, b):
 
 def ccorr(a, b):
     return irfft(com_mult(conj(rfft(a, 1)), rfft(b, 1)), 1, signal_sizes=a.shape[-1],)
+
+
+def circular_correlation(A, B):
+    # 计算傅里叶变换
+    fft_A = torch.fft.fft2(A, dim=(-2, -1))
+    fft_B = torch.fft.fft2(B, dim=(-2, -1))
+
+    # 取复共轭并进行元素乘积
+    conj_fft_B = torch.conj(fft_B)
+    fft_prod = fft_A * conj_fft_B
+
+    # 计算逆傅里叶变换并取实部
+    correlation = torch.fft.ifft2(fft_prod, dim=(-2, -1)).real
+
+    return correlation

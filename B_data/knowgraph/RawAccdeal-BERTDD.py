@@ -59,11 +59,13 @@ def RawAcc_BEONE(excel_datas, catalogue_datas):
     delimiters = ["、", "（", "）"]
     # 加载模型
     BBc = BertBase("../datasets/knowgraph/bert-base-chinese/", "cuda:1")
+    excel_data_all = excel_datas[6][0][1] + excel_datas[6][0][1]
+    logging.info(f"excel_data_all：{len(excel_data_all)}")
     # 加载数据，去重
-    excel_data = list(set(excel_datas[6][0][1] + excel_datas[6][0][1]))
+    excel_data = list(set(excel_data_all))
     del excel_datas
     catalogue_data = catalogue_datas[0][0][str(5)]
-    logging.info(f"excel_data_data：{len(excel_data)}")
+    logging.info(f"excel_data：{len(excel_data)}")
     logging.info(f"catalogue_data：{len(catalogue_data)}")
     # 进度条及预估时间
     start_time = time.time()
