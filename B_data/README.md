@@ -62,3 +62,16 @@ https://github.com/ShenDezhou/Chinese-PreTrained-BERT#%E6%A8%A1%E5%9E%8B%E4%B8%8
 
 谷歌最强NLP模型BERT如约开源，12小时GitHub标星破1500，即将支持中文
 https://zhuanlan.zhihu.com/p/48203943
+
+BERT在美团搜索核心排序的探索和实践
+https://tech.meituan.com/2020/07/09/bert-in-meituan-search.html
+
+## 3. 生成知识图谱的x、y坐标和聚类
+
+参考：
+Python使用算法生成知识图谱的x、y坐标和聚类（networkx、sklearn、Kamada-Kawai布局）
+https://blog.csdn.net/weixin_42597632/article/details/139113405
+在Python的networkx模块中，可以使用布局算法来控制点的位置。
+https://www.5axxw.com/questions/simple/003n85
+在Python的networkx模块中布局算法
+https://www.osgeo.cn/networkx/reference/drawing.html?highlight=layout#module-networkx.drawing.layout

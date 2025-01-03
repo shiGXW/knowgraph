@@ -12,6 +12,9 @@ https://github.com/migalkin/StarE
 
 StarE中C_models、run-StarE放入上级目录即可
 
+Pytorch中使用TensorBoard
+https://blog.csdn.net/m0_61878383/article/details/136552258
+
 
 常用命令
 ```
@@ -28,22 +31,29 @@ conda activate pytorch
 cd /home/GXW/code/pytorch/knowgraph
 cd /home/GXW/code/pytorch/knowgraph/D_export/log
 cd /home/GXW/code/pytorch/knowgraph/B_data/knowgraph
+cd /root/GXM/code/knowgraph
+cd /root/GXM/code/knowgraph/D_export/log
+cd /root/GXM/code/knowgraph/B_data/knowgraph
 
 # 不使用测试集
 nohup python -u ./run-notest.py > /dev/null 2>&1 &
 kill -9 $(pgrep -f './run-notest.py')
 nohup python -u ./run-StarE.py >> ./run-StarE.log 2>&1 &
 kill -9 $(pgrep -f './run-StarE.py')
-nohup python -u datadeal-allDD-notest.py >> ./run.log 2>&1 &
-kill -9 $(pgrep -f 'datadeal-allDD-notest.py')
-nohup python -u RawAccdeal-BERT.py >> ./BERT_max_run.log 2>&1 &
-kill -9 $(pgrep -f 'RawAccdeal-BERT.py')
+nohup python -u RawAccdeal-BERTDDD-simple.py >> ./BERT_max_run.log 2>&1 &
+kill -9 $(pgrep -f 'RawAccdeal-BERTDDD-simple.py')
+nohup python -u datadeal-allDDD-notest.py >> ./run.log 2>&1 &
+kill -9 $(pgrep -f 'datadeal-allDDD-notest.py')
 
 # 使用测试集
 nohup python -u ./run.py > /dev/null 2>&1 &
 kill -9 $(pgrep -f './run.py')
 nohup python -u datadeal.py >> ./run.log 2>&1 &
 kill -9 $(pgrep -f 'datadeal.py')
+
+# TensorBoard 训练过程可视化
+cd testrun_2024_07_20_09_56_31_csv
+tensorboard --logdir=./ --bind_all
 ```
 
 ## 2. 调参

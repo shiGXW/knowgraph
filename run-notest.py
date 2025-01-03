@@ -1,5 +1,5 @@
 import os
-
+from torch.utils.tensorboard import SummaryWriter
 from helper import *
 from B_data.data_loader import *
 # sys.path.append('./')
@@ -149,6 +149,9 @@ class Runner(object):
 
         """
         self.p = params
+        # 初始化SummaryWriter
+        self.writer = SummaryWriter(args.csv_dir)
+
         self.logger = get_logger(self.p.name, self.p.log_dir, os.path.abspath(self.p.config_dir))
 
         self.logger.info(vars(self.p))
@@ -513,6 +516,12 @@ class Runner(object):
             train_loss = self.run_epoch(epoch)
             val_results = self.evaluate('valid', epoch)
 
+            # 记录损失和准确率
+            self.writer.add_scalar('Loss/train', train_loss, epoch)
+            self.writer.add_scalar('Tail MRR/train', val_results['left_mrr'], epoch)
+            self.writer.add_scalar('H@10/train', val_results['hits@10'], epoch)
+            self.writer.add_scalar('H@1/train', val_results['hits@1'], epoch)
+
             # if val_results['mrr'] > self.best_val_mrr:
             if val_results['left_mrr'] > self.best_val_mrr:
                 self.best_val = val_results
@@ -537,6 +546,7 @@ class Runner(object):
 
             # 更新学习率
             self.lr_scheduler.step()
+        self.logger.info("Done!!")
 
 
 if __name__ == '__main__':
@@ -547,7 +557,7 @@ if __name__ == '__main__':
     parser.add_argument('-name', default='testrun', help='Set run name for saving/restoring models')
     parser.add_argument('-data', dest='dataset', default='knowgraph/max/', help='Dataset to use, default: FB15k-237, knowgraph/max/')
     parser.add_argument('-model', dest='model', default='CompGCN', help='Model Name')
-    parser.add_argument('-score_func', dest='score_func', default='Transformer', help='Score Function for Link prediction')
+    parser.add_argument('-score_func', dest='score_func', default='Transformer', help='Score Function for Link prediction, default: ConvE, Transformer')
     parser.add_argument('-opn', dest='opn', default='corr', help='Composition Operation to be used in CompGCN：sub, mult, corr')
 
     # ConvE：896
@@ -566,8 +576,8 @@ if __name__ == '__main__':
     # MultiStepLR的参数
     # 设置学习率降低的epoch位置
     # ConvE：[16, 22], [6, 16], [50, 100, 150, 200, 300], [100, 200, 350, 400, 450]
-    # Transformer：[10, 20, 30, 40, 50], [100, 200, 300, 400, 500]
-    parser.add_argument('--lr-steps', type=int, default=[300, 425, 450, 475], nargs='+',
+    # Transformer：[10, 20, 30, 40, 50], [100, 200, 300, 400, 500], [200, 275, 325, 450]
+    parser.add_argument('--lr-steps', type=int, default=[200, 275, 325, 450], nargs='+',
                         help='decrease lr every step-size epochs')
     # 学习率衰减的倍数
     parser.add_argument('--lr-gamma', type=float, default=0.1,

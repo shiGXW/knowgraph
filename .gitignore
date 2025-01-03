@@ -6,6 +6,9 @@ D_export/log/*
 B_data/pretrain/alexnet-owt-7be5be79.pth
 *.zip
 *.rar
+*.txt
+*.csv
+*.xlsx
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
