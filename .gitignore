@@ -14,6 +14,7 @@ B_data/pretrain/alexnet-owt-7be5be79.pth
 *.doc
 *.docx
 *.pdf
+*.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
