@@ -336,7 +336,7 @@ class Runner(object):
             export_info["enterid"].add(self.id2ent[sub_total[item]])
             # 预测阈值
             # print(target_pred_total[item])
-            if target_pred_total[item] >= self.p.accuracy_th:
+            if target_pred_total[item] >= np.sum(target_pred_total) * self.p.accuracy_th:
                 # 存在多个obj
                 if sub_total[item] in pred_industry_total.keys():
                     pred_industry_total[self.id2ent[int(sub_total[item])]].append(self.id2ent[obj_total[item]])
@@ -448,6 +448,7 @@ class Runner(object):
                     # 找出tensor中非零的元素的索引，存入label_total
                     label_nonzero = label.nonzero().cpu()
                     label_nonzero = np.array(label_nonzero, dtype=np.int32)
+                    # 将label_nonzero中的0位序号转为sub对应的ent的id；0位序号不变，本身就是对应的ent的id
                     for index in range(label_nonzero.shape[0]):
                         label_nonzero[index, 0] = sub[label_nonzero[index, 0]]
                         label_nonzero[index, 1] = label_nonzero[index, 1]
@@ -567,7 +568,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Parser For Arguments',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('-name', default='testrun_2024_07_25_09_33_37', help='Set run name for saving/restoring models')
+    parser.add_argument('-name', default='testrun', help='Set run name for saving/restoring models')
+    # parser.add_argument('-name', default='testrun_2024_07_25_09_33_37', help='Set run name for saving/restoring models')
     parser.add_argument('-data', dest='dataset', default='knowgraph/max/', help='Dataset to use, default: FB15k-237, knowgraph/max/')
     parser.add_argument('-model', dest='model', default='CompGCN', help='Model Name')
     parser.add_argument('-score_func', dest='score_func', default='Transformer', help='Score Function for Link prediction, default: ConvE, Transformer')
@@ -601,7 +603,7 @@ if __name__ == '__main__':
     parser.add_argument('-seed', dest='seed', default=7588, type=int, help='Seed for randomization')
     parser.add_argument('-accuracy_th', type=float, default=-10, help='预测阈值')
 
-    parser.add_argument('-restore', dest='restore', default=True, type=bool, help='Restore from the previously saved model')
+    parser.add_argument('-restore', dest='restore', default=False, type=bool, help='Restore from the previously saved model')
     parser.add_argument('-bias', dest='bias', action='store_true', help='Whether to use bias in the model')
 
     parser.add_argument('-num_bases', dest='num_bases', default=7, type=int,
