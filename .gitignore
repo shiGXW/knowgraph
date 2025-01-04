@@ -8,10 +8,12 @@ B_data/pretrain/alexnet-owt-7be5be79.pth
 *.rar
 *.txt
 *.csv
+*.xls
 *.xlsx
 *.7z
 *.doc
-*.xls
+*.docx
+*.pdf
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
