@@ -190,14 +190,15 @@ def get_indust_encode(class_industrys, industry):
 
 
 # 划分数据集
-def dataset_part(excel_datas_merge):
+def dataset_part(excel_datas_merge, industry_data):
     industry_dict = {item: [] for item in excel_datas_merge[0][0][1]}
     industry_train_dict = {item: [] for item in excel_datas_merge[0][0][1]}
     industry_valid_dict = {item: [] for item in excel_datas_merge[0][0][1]}
     data_except = []
     # 字典数据写入数据集字典
     for item in range(excel_datas_merge[0][1]):
-        if excel_datas_merge[2][0][1][item] == "QYSX_CF" and isinstance(excel_datas_merge[0][0][1][item], str):
+        # 企业为产废企业，行业为字符串，企业数据完整性高
+        if excel_datas_merge[2][0][1][item] == "QYSX_CF" and isinstance(excel_datas_merge[0][0][1][item], str) and excel_datas_merge[0][0][0][item] in industry_data[0]['0']:
             industry_dict[excel_datas_merge[0][0][1][item]].append(excel_datas_merge[0][0][0][item])
         else:
             data_except.append(excel_datas_merge[2][0][1][item])
@@ -221,6 +222,7 @@ def dataset_part(excel_datas_merge):
     return
 
 
+# 按比例分割list
 def split_list(lst, ratios, num_splits):
 
     """
@@ -246,24 +248,23 @@ def split_list(lst, ratios, num_splits):
 
 
 # 写入txt文件
-def write_all_txt(excel_datas_merge, data_list, indexs):
+def write_all_txt(excel_datas_merge, id_md5_dict, indexs):
     rel_list = [
         "industry", "enterprise", "enttype", "areacode", "HW", "waste", "material", "product", "HWwaste"
     ]
-    with open(os.path.join(excel_path, 'id_md5_dict.json'), 'r') as json_file:
-        id_md5_dict = json.loads(str(json_file.read()))
     for index in indexs:
         data_triples = {
             "sub": [],
             "rel": [],
             "obj": [],
         }
-        # [0, 1, 2]，list 为读取到的数据在 excel_datas_merge 中的位置
-        if rel_list[index] in ["industry", "areacode"]:
+        # [0, 2, 3]，list 为读取到的数据在 excel_datas_merge 中的位置
+        if rel_list[index] in ["industry", "enterprise", "enttype", "areacode"]:
             # 企业id——行业
-            logging.info("三元组：企业md5——行业、区划")
+            logging.info("三元组：企业md5——行业、企业类型、区划")
             for item_index, item in enumerate(excel_datas_merge[index][0][0]):
-                if item in data_list:
+                # 验证数据完整性，必须有 "waste", "material", "product"
+                if enterprise_data_integrity(excel_datas_merge, excel_datas_merge[index][0][0][item_index]):
                     data_triples["sub"].append(id_md5_dict[excel_datas_merge[index][0][0][item_index]])
                     data_triples["rel"].append(rel_list[index])
                     data_triples["obj"].append(excel_datas_merge[index][0][1][item_index])
@@ -274,7 +275,7 @@ def write_all_txt(excel_datas_merge, data_list, indexs):
             data_except = []
             # 存入字典
             for item_index, item in enumerate(excel_datas_merge[index][0][0]):
-                if item in data_list:
+                if enterprise_data_integrity(excel_datas_merge, excel_datas_merge[index][0][0][item_index]):
                     try:
                         sub = excel_datas_merge[index][0][0][item_index]
                         obj = excel_datas_merge[index][0][1][item_index][:4]
@@ -300,7 +301,7 @@ def write_all_txt(excel_datas_merge, data_list, indexs):
             data_except = []
             # 存入字典
             for item_index, item in enumerate(excel_datas_merge[index][0][0]):
-                if item in data_list:
+                if enterprise_data_integrity(excel_datas_merge, excel_datas_merge[index][0][0][item_index]):
                     try:
                         sub = excel_datas_merge[index][0][0][item_index]
                         obj = excel_datas_merge[index][0][1][item_index]
@@ -327,7 +328,7 @@ def write_all_txt(excel_datas_merge, data_list, indexs):
             dealRawAcc_data = dealRawAcc_BERT_dict(excel_datas_merge[index][0])
             # 存入字典
             for item_index, item in enumerate(dealRawAcc_data[0]):
-                if item in data_list:
+                if enterprise_data_integrity(excel_datas_merge, excel_datas_merge[index][0][0][item_index]):
                     if dealRawAcc_data[1][item_index] != "蚶":
                         try:
                             sub = dealRawAcc_data[0][item_index]
@@ -378,6 +379,16 @@ def write_all_txt(excel_datas_merge, data_list, indexs):
         )
 
 
+# 计算企业数据完整性
+def enterprise_data_integrity(excel_datas_merge, id):
+    # 验证数据完整性，必须有 "waste", "material", "product"
+    if id in excel_datas_merge[5][0][0] and id in excel_datas_merge[6][0][0] and id in excel_datas_merge[7][0][0]:
+        return True
+    else:
+        return False
+
+
+# 原料、产品实体链接
 def dealRawAcc_BERT_dict(excel_data):
     enterids_ex = []
     rawaccs_ex = []
@@ -410,8 +421,8 @@ def dealRawAcc_BERT_dict(excel_data):
     return [enterids_ex, rawaccs_ex]
 
 
-# 读取csv
-def read_csv_all(data_path, indexs):
+# 读取保存的全部原始数据
+def read_all_txt(data_path, indexs):
     excel_datas_merge = []
     for index in indexs:
         file_name = data_path + str(index) + ".txt"
@@ -430,6 +441,7 @@ def read_csv_all(data_path, indexs):
     return excel_datas_merge
 
 
+# 训练数据集生成
 def write_train_txt(all_data, dataset_part_dict, id_md5_dict):
     train_data_triples = {
         "sub": [],
@@ -516,19 +528,23 @@ if __name__ == '__main__':
 
     """知识图谱及模型训练"""
 
-    # # 所有数据（原料、产品实体链接后）写入 txt，list 为读取到的数据在 excel_datas_merge 中的位置0, 10, 1, 2, 4, 5
-    # # 0, 1, 2, 3, 4, 5, 6, 7, 8
-    # # "industry", "enterprise", "enttype", "areacode", "HW", "waste", "material", "product", "HWwaste"
-    # write_all_txt(excel_datas_merge, dataset_part_dict["all"], [0, 3, 4, 5, 6, 7, 8])
+    # 所有数据（原料、产品实体链接后）写入 txt，企业 id 转为 md5 值
+    # list 为读取到的数据在 excel_datas_merge 中的位置0, 10, 1, 2, 4, 5
+    # 0, 1, 2, 3, 4, 5, 6, 7, 8
+    # "industry", "enterprise", "enttype", "areacode", "HW", "waste", "material", "product", "HWwaste"
+    write_all_txt(excel_datas_merge, id_md5_dict, [0, 1, 2, 3, 4, 5, 6, 7, 8])
 
     # 划分数据集
-    dataset_part(excel_datas_merge)
+    industry_data = read_all_txt(excel_path + "all/", ["industry"])
+    dataset_part(excel_datas_merge, industry_data)
     # 获取数据集划分
     with open(os.path.join(excel_path, 'dataset_part_dict.json'), 'r') as json_file:
         dataset_part_dict = json.loads(str(json_file.read()))
 
-    # # 训练数据写入 txt
-    # # list 为文件名，"industry", "areacode", "HW", "waste", "material", "product", "HWwaste"
-    # all_data = read_csv_all(excel_path + "all/", ["industry", "areacode", "HW", "waste", "material", "product", "HWwaste"])
-    # write_train_txt(all_data, dataset_part_dict, id_md5_dict)
-    # logging.info("Done!!!")
+    # 根据划分数据集中的企业 md5 值，将数据集写入train.txt、valid.txt
+    # "enterprise" 企业名不写入数据集，不参与模型训练，以 md5 值作为企业实体
+    # list 为文件名，"industry", "enttype", "areacode", "HW", "waste", "material", "product", "HWwaste"
+    all_datas = read_all_txt(excel_path + "all/", ["industry", "enttype", "areacode", "HW", "waste", "material", "product", "HWwaste"])
+    write_train_txt(all_datas, dataset_part_dict, id_md5_dict)
+
+    logging.info("Done!!!")

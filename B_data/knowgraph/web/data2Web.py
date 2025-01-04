@@ -176,7 +176,7 @@ def Data2Web(train_path, valid_path):
 
 
 if __name__ == '__main__':
-    data_path = r"../datasets/knowgraph/max/all/"
+    data_path = r"../../datasets/knowgraph/maxDDD/all/"
     # nodes, edges = load_konwgraph_data(data_path + "train.txt", data_path + "valid.txt")
     # coordinates, x_y_dict = get_laidu_networkx_index(nodes, edges)
     # print(coordinates)

@@ -31,6 +31,10 @@ class BertBase():
         sentence_embeddings1 = self.batch_sentences(sentences1, batch_size)
         sentence_embeddings2 = self.batch_sentences(sentences2, batch_size)
 
+        # 词句向量放入GPU
+        sentence_embeddings1 = sentence_embeddings1.to(self.device)
+        sentence_embeddings2 = sentence_embeddings2.to(self.device)
+
         similarities, similarity_indexs = self.compare_sentences(sentence_embeddings1, sentence_embeddings2)
 
         return similarities, similarity_indexs
@@ -65,7 +69,7 @@ class BertBase():
                 sentence_embeddings = batch_sentence_embeddings.cpu()
             else:
                 sentence_embeddings = torch.cat([sentence_embeddings, batch_sentence_embeddings.cpu()], 0)
-            # delete caches
+            # 清除缓存
             del encoded_inputs, input_ids, outputs, attention_mask, batch_sentence_embeddings
 
         # 返回所有批次计算出的相似度结果
@@ -75,8 +79,6 @@ class BertBase():
         # 初始化存储结果的容器
         similarities = []
         similarity_indexs = []
-        sentence_embeddings1 = sentence_embeddings1.to(self.device)
-        sentence_embeddings2 = sentence_embeddings2.to(self.device)
 
         for index in range(0, sentence_embeddings1.shape[0]):
             # 计算余弦相似度
@@ -88,7 +90,10 @@ class BertBase():
             similarities.append(np.max(one_similaritie))
             similarity_indexs.append(np.argmax(one_similaritie))
 
-        # 返回所有批次计算出的相似度最高的index
+            # 清除缓存
+            del one_embedding, one_similaritie
+
+            # 返回所有批次计算出的相似度最高的index
         return similarities, similarity_indexs
 
 
