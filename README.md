@@ -28,20 +28,30 @@ $ git push origin master
 
 # python
 conda activate pytorch
+
 cd /home/GXW/code/pytorch/knowgraph
 cd /home/GXW/code/pytorch/knowgraph/D_export/log
 cd /home/GXW/code/pytorch/knowgraph/B_data/knowgraph
+
 cd /root/GXM/code/knowgraph
 cd /root/GXM/code/knowgraph/D_export/log
-cd /root/GXM/code/knowgraph/B_data/knowgraph
+cd /root/GXM/code/knowgraph/D_export/checkpoint
+cd /root/GXM/code/knowgraph/B_data/knowgraph/BERT
+cat BERT_max_run.log
 
 # 不使用测试集
+# 模型训练+验证
 nohup python -u ./run-notest.py > /dev/null 2>&1 &
 kill -9 $(pgrep -f './run-notest.py')
 nohup python -u ./run-StarE.py >> ./run-StarE.log 2>&1 &
 kill -9 $(pgrep -f './run-StarE.py')
+# 模型验证
+nohup python -u ./run-notest.py -restore True -name testrun_2024_07_25_09_33_37 > /dev/null 2>&1 &
+kill -9 $(pgrep -f './run-notest.py')
+# 实体链接
 nohup python -u RawAccdeal-BERTDDD-simple.py >> ./BERT_max_run.log 2>&1 &
 kill -9 $(pgrep -f 'RawAccdeal-BERTDDD-simple.py')
+# 数据处理
 nohup python -u datadeal-allDDD-notest.py >> ./run.log 2>&1 &
 kill -9 $(pgrep -f 'datadeal-allDDD-notest.py')
 

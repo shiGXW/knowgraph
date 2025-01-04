@@ -152,7 +152,13 @@ class Runner(object):
         # 初始化SummaryWriter
         self.writer = SummaryWriter(args.csv_dir)
 
-        self.logger = get_logger(self.p.name, self.p.log_dir, os.path.abspath(self.p.config_dir))
+        if not args.restore:
+            self.logger = get_logger(self.p.name, self.p.log_dir, os.path.abspath(self.p.config_dir))
+        else:
+            self.logger = get_logger(
+                args.name.split("_")[0] + '_ev_' + time.strftime('%Y_%m_%d') + '_' + time.strftime('%H_%M_%S'),
+                self.p.log_dir, os.path.abspath(self.p.config_dir)
+            )
 
         self.logger.info(vars(self.p))
 
@@ -294,6 +300,7 @@ class Runner(object):
         rel_total = np.array(rel_total, dtype=np.int32)
         obj_total = np.array(obj_total, dtype=np.int32)
         label_total = np.array(label_total, dtype=np.int32)
+        # 关系为rel_flag的预测，在rel_total中的位置
         rel_index = np.where(rel_total == rel_flag)
         rel_list = ["industry", "areacode", "HW", "waste", "material", "product", "HWwaste"]
         # sub_total, rel_total, obj_total, label_total
@@ -302,6 +309,7 @@ class Runner(object):
         # rel_total = [ 13, 26, 7, 2, 19, ... ]
         # obj_total = [ 2292, 1276, 3175, 3010, 339, ... ]
         # target_pred_total = [ 0.00005, 0.00128, 0.72369, 0.16455, 0.00001, ... ]
+        # 两列，一为sub位置，二为sub, rel对应的所有obj
         # label_total = [ [ 0, 27 ], [ 0, 32 ], [ 0, 75 ], [ 0, 92 ], [ 0, 119 ], ... ]
         export_info = {
             "enter": OrderedSet(),
@@ -314,25 +322,26 @@ class Runner(object):
         # 获取 md5 值对应的真实id
         with open(os.path.join(self.p.data_dir + self.p.dataset, 'id_md5_dict.json'), 'r') as json_file:
             id_md5_dict = json.loads(str(json_file.read()))
-            enterid2id_dict = dict(zip(id_md5_dict.values(), id_md5_dict.keys()))
+            md5_id_dict = dict(zip(id_md5_dict.values(), id_md5_dict.keys()))
         # 获取 id 对应企业名
         with open(os.path.join(self.p.data_dir + self.p.dataset, 'id_enterprise_dict.json'), 'r') as json_file:
-            id2enterprise_dict = json.loads(str(json_file.read()))
+            id_enterprise_dict = json.loads(str(json_file.read()))
 
         pred_industry_total = {}
         true_industry_total = {}
+        # 处理 pred_industry
         for item in rel_index[0]:
-            # 写入 Set
-            export_info["enter"].add(id2enterprise_dict[enterid2id_dict[self.id2ent[sub_total[item]]]])
+            # 获取验证集的企业信息，写入 Set
+            export_info["enter"].add(id_enterprise_dict[md5_id_dict[self.id2ent[sub_total[item]]]])
             export_info["enterid"].add(self.id2ent[sub_total[item]])
-            # 处理 pred_industry
             # 预测阈值
             # print(target_pred_total[item])
             if target_pred_total[item] >= self.p.accuracy_th:
+                # 存在多个obj
                 if sub_total[item] in pred_industry_total.keys():
-                    pred_industry_total[str(sub_total[item])].append(self.id2ent[obj_total[item]])
+                    pred_industry_total[self.id2ent[int(sub_total[item])]].append(self.id2ent[obj_total[item]])
                 else:
-                    pred_industry_total[str(sub_total[item])] = [self.id2ent[obj_total[item]]]
+                    pred_industry_total[self.id2ent[int(sub_total[item])]] = [self.id2ent[obj_total[item]]]
         # 处理 true_industry
         for item in range(len(label_total)):
             sr2o_rel_flag = self.sr2o_all.get((label_total[item][0], rel_flag), [])
@@ -341,12 +350,13 @@ class Runner(object):
                     true_industry_total[self.id2ent[int(label_total[item][0])]].append(self.id2ent[int(label_total[item][1])])
                 else:
                     true_industry_total[self.id2ent[int(label_total[item][0])]] = [self.id2ent[int(label_total[item][1])]]
-
+        # 后处理
         for item in export_info["enterid"]:
+            # 去重并转为list
             true_list = list(set(true_industry_total.get(item, [])))
             pred_list = list(set(pred_industry_total.get(item, [])))
-            export_info["true_" + rel_list[rel_flag]].append('、'.join(true_list))
-            export_info["pred_" + rel_list[rel_flag]].append('、'.join(pred_list))
+            export_info["true_" + rel_list[rel_flag]].append('；'.join(true_list))
+            export_info["pred_" + rel_list[rel_flag]].append('；'.join(pred_list))
             export_info[rel_list[rel_flag] + "_accuracy"].append(
                 len(set(true_list) & set(pred_list)) / (len(true_list) if len(true_list) > len(pred_list) else len(pred_list))
             )
@@ -355,12 +365,15 @@ class Runner(object):
         # # 计算准确率
         # torch.eq(pred_targets, true_targets).sum().float().item()
         # 导出到 csv 文件
-        time_flag = time.strftime('%Y_%m_%d') + '_' + time.strftime('%H_%M_%S') + '_' + str(results['mrr'])
+        if not args.restore:
+            time_flag = time.strftime('%Y_%m_%d') + '_' + time.strftime('%H_%M_%S') + '_' + str(results['mrr'])
+        else:
+            time_flag = args.name + '_' + str(results['mrr'])
         pd.DataFrame({
             0: list(export_info["enter"]),
             1: list(export_info["enterid"]),
-            2: export_info["pred_industry"],
-            3: export_info["true_industry"]
+            2: export_info["pred_" + rel_list[rel_flag]],
+            3: export_info["true_" + rel_list[rel_flag]]
         }).to_csv(
             f'{args.csv_dir}/{time_flag}.csv', sep='\t', index=False, header=False
         )
@@ -425,7 +438,7 @@ class Runner(object):
                 sub, rel, obj, label = self.read_batch(batch, split)
                 pred = self.model.forward(sub, rel)
                 b_range = torch.arange(pred.size()[0], device=self.device)
-                # 预测概率——对应于每一个 obj
+                # 预测概率——sub 对应于每一个 obj 预测的置信度
                 target_pred = pred[b_range, obj]
                 if mode == 'tail_batch':
                     # 存入三元组
@@ -554,7 +567,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Parser For Arguments',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('-name', default='testrun', help='Set run name for saving/restoring models')
+    parser.add_argument('-name', default='testrun_2024_07_25_09_33_37', help='Set run name for saving/restoring models')
     parser.add_argument('-data', dest='dataset', default='knowgraph/max/', help='Dataset to use, default: FB15k-237, knowgraph/max/')
     parser.add_argument('-model', dest='model', default='CompGCN', help='Model Name')
     parser.add_argument('-score_func', dest='score_func', default='Transformer', help='Score Function for Link prediction, default: ConvE, Transformer')
@@ -586,9 +599,9 @@ if __name__ == '__main__':
     parser.add_argument('-lbl_smooth', dest='lbl_smooth', type=float, default=0.1, help='Label Smoothing')
     parser.add_argument('-num_workers', type=int, default=0, help='Number of processes to construct batches')
     parser.add_argument('-seed', dest='seed', default=7588, type=int, help='Seed for randomization')
-    parser.add_argument('-accuracy_th', type=float, default=0.5, help='预测阈值')
+    parser.add_argument('-accuracy_th', type=float, default=-10, help='预测阈值')
 
-    parser.add_argument('-restore', dest='restore', action='store_true', help='Restore from the previously saved model')
+    parser.add_argument('-restore', dest='restore', default=True, type=bool, help='Restore from the previously saved model')
     parser.add_argument('-bias', dest='bias', action='store_true', help='Whether to use bias in the model')
 
     parser.add_argument('-num_bases', dest='num_bases', default=7, type=int,
@@ -629,13 +642,15 @@ if __name__ == '__main__':
     parser.add_argument('-datadir', dest='data_dir', default='./B_data/datasets/', help='data directory')
     args = parser.parse_args()
 
-    if not args.restore: args.name = args.name + '_' + time.strftime('%Y_%m_%d') + '_' + time.strftime('%H_%M_%S')
+    if not args.restore:
+        args.name = args.name + '_' + time.strftime('%Y_%m_%d') + '_' + time.strftime('%H_%M_%S')
+        args.csv_dir = args.csv_dir + args.name + "_csv"
+    else:
+        args.csv_dir = args.csv_dir + args.name.split("_")[0] + '_ev_' + time.strftime('%Y_%m_%d') + '_' + time.strftime('%H_%M_%S') + "_csv"
+    # 创建 csv 存储位置
+    os.mkdir(args.csv_dir)
 
     set_gpu(args.gpu)
-
-    # 创建 csv 存储位置
-    args.csv_dir = args.csv_dir + args.name + "_csv"
-    os.mkdir(args.csv_dir)
 
     args.seed = np.random.randint(1000, 100000)
 
@@ -647,4 +662,10 @@ if __name__ == '__main__':
     torch.cuda.manual_seed_all(args.seed)
 
     model = Runner(args)
-    model.fit()
+
+    if not args.restore:
+        # 模型训练+每epoch验证
+        model.fit()
+    else:
+        # 模型验证
+        val_results = model.evaluate('valid', "out")

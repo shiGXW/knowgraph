@@ -71,29 +71,66 @@ def RawAcc_BEONE(excel_datas_merge, catalogue_match_datas):
         excel_data = excel_data + rawacc_list
     catalogue_data = catalogue_match_datas[0][0][str(5)]
     match_data = [str(item) for sublist in list(zip(*list(catalogue_match_datas[1][0].values()))) for item in sublist]
+    match_data_simple = [item for item in match_data if item != "nan" and item != "no"]
     del excel_datas_merge, catalogue_match_datas
     logging.info(f"excel_data：{len(excel_data)}")
     logging.info(f"catalogue_data：{len(catalogue_data)}")
     logging.info(f"match_data：{len(match_data)}")
-    similarities_catalogue, similarity_catalogue_indexs = BBc.train(excel_data, catalogue_data, batch_size=1024)
-    similarities_match, similarity_match_indexs = BBc.train(excel_data, match_data, batch_size=1024)
-    for index, similar in enumerate(similarities_catalogue):
-        # 构建匹配映射，首先匹配catalogue_datas；再匹配手工匹配度；比较相似度，选最优
-        # 匹配catalogue_data相似度高
-        if similarities_catalogue[index] >= similarities_match[index]:
-            if similarities_catalogue[index] >= 0.9:
-                rawacc_beone_dict[excel_data[index]] = catalogue_data[similarity_catalogue_indexs[index]]
+    logging.info(f"match_data_simple：{len(match_data_simple)}")
+
+    # 进度条及预估时间
+    start_time = time.time()
+    current = -1
+    total = 1 + len(excel_data)//100
+
+    for excel_data_item in [excel_data[i:i+100] for i in range(0, len(excel_data), 100)]:
+        # 输出
+        current = current + 1
+        progress_bar(start_time, total, current)
+
+        similarities_catalogue, similarity_catalogue_indexs = BBc.train(excel_data_item, catalogue_data, batch_size=1024)
+        similarities_match, similarity_match_indexs = BBc.train(excel_data_item, match_data_simple, batch_size=1024)
+        for index, similar in enumerate(similarities_catalogue):
+            # 构建匹配映射，首先匹配catalogue_datas；再匹配手工匹配度；比较相似度，选最优
+            # 匹配catalogue_data相似度高
+            if similarities_catalogue[index] >= similarities_match[index]:
+                if similarities_catalogue[index] >= 0.9:
+                    rawacc_beone_dict[excel_data_item[index]] = catalogue_data[similarity_catalogue_indexs[index]]
+                else:
+                    data_except.append(excel_data_item[index])
+            # 匹配match_data_simple相似度高
             else:
-                data_except.append(excel_data[index])
-        # 匹配match_data相似度高
-        else:
-            if similarities_match[index] >= 0.9:
-                rawacc_beone_dict[excel_data[index]] = match_data[22*(similarity_match_indexs[index]//22)]
-            else:
-                data_except.append(excel_data[index])
+                if similarities_match[index] >= 0.9:
+                    rawacc_beone_dict[excel_data_item[index]] = match_data[
+                        22*(match_data.index(match_data_simple[similarity_match_indexs[index]])//22)
+                    ]
+                else:
+                    data_except.append(excel_data_item[index])
     rawacc_beone_dict_json_str = json.dumps(rawacc_beone_dict, indent=4, ensure_ascii=False)
     with open(os.path.join(excel_path, 'rawacc_beone_max_dict_simple.json'), 'w') as json_file:
         json_file.write(rawacc_beone_dict_json_str)
+
+
+# 进度条函数
+def progress_bar(start_time, total, current):
+    bar_length = 50  # 进度条的长度
+    percent = floor(current / total * 100)
+    if percent > 100:
+        percent = 100
+    bar = ''.join(["#" for _ in range(int(bar_length * current / total))])
+    logging.info("\r[{}->{}] {}% {}".format(bar, ' ' * (bar_length - len(bar)), percent, time_to_complete(start_time, total, current)))
+
+
+# 估算剩余时间
+def time_to_complete(start_time, total, current):
+    if current > 0:
+        dur_per_item = (time.time() - start_time) / current
+        remaining = total - current
+        m, s = divmod(dur_per_item * remaining, 60)
+        h, m = divmod(m, 60)
+        return "Remaining: %02d:%02d:%02d" % (h, m, s)
+    else:
+        return "Estimated time to complete"
 
 
 if __name__ == '__main__':

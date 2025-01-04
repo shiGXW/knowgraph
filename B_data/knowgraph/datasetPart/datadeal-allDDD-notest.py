@@ -519,10 +519,10 @@ if __name__ == '__main__':
     with open(os.path.join(excel_path, 'id_md5_dict.json'), 'r') as json_file:
         id_md5_dict = json.loads(str(json_file.read()))
 
+    # # 行业统计：industry_class_B_sort_dict.json、industry_class_S_sort_dict.json、data_stat_industry_except.txt
     # # 获取国民经济行业分类数据
     # # list 为文件名，4,5
     # class_industrys = read_csv(excel_path, ["4", "5"])
-    # # 行业统计：industry_class_B_sort_dict.json、industry_class_S_sort_dict.json、data_stat_industry_except.txt
     # data_stat_industry(excel_datas_merge, class_industrys)
 
 
@@ -534,17 +534,18 @@ if __name__ == '__main__':
     # "industry", "enterprise", "enttype", "areacode", "HW", "waste", "material", "product", "HWwaste"
     write_all_txt(excel_datas_merge, id_md5_dict, [0, 1, 2, 3, 4, 5, 6, 7, 8])
 
-    # 划分数据集
+    """划分数据集"""
     industry_data = read_all_txt(excel_path + "all/", ["industry"])
     dataset_part(excel_datas_merge, industry_data)
     # 获取数据集划分
     with open(os.path.join(excel_path, 'dataset_part_dict.json'), 'r') as json_file:
         dataset_part_dict = json.loads(str(json_file.read()))
 
+    """数据集写入train.txt、valid.txt"""
     # 根据划分数据集中的企业 md5 值，将数据集写入train.txt、valid.txt
     # "enterprise" 企业名不写入数据集，不参与模型训练，以 md5 值作为企业实体
     # list 为文件名，"industry", "enttype", "areacode", "HW", "waste", "material", "product", "HWwaste"
-    all_datas = read_all_txt(excel_path + "all/", ["industry", "enttype", "areacode", "HW", "waste", "material", "product", "HWwaste"])
-    write_train_txt(all_datas, dataset_part_dict, id_md5_dict)
+    train_valid_datas = read_all_txt(excel_path + "all/", ["industry", "enttype", "areacode", "HW", "waste", "material", "product", "HWwaste"])
+    write_train_txt(train_valid_datas, dataset_part_dict, id_md5_dict)
 
     logging.info("Done!!!")

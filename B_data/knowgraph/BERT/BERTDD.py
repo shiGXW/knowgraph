@@ -37,6 +37,9 @@ class BertBase():
 
         similarities, similarity_indexs = self.compare_sentences(sentence_embeddings1, sentence_embeddings2)
 
+        # 清除缓存
+        del sentence_embeddings1, sentence_embeddings2
+
         return similarities, similarity_indexs
 
     def batch_sentences(self, sentences, batch_size=32):
