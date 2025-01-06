@@ -10,7 +10,7 @@ from jieba import analyse
 import numpy as np
 from math import nan
 import pandas as pd
-from BERTDD import *
+from BERTDDD import *
 from math import floor
 from ordered_set import OrderedSet
 import urllib.request
@@ -57,9 +57,7 @@ def RawAcc_BEONE(excel_datas_merge, catalogue_match_datas):
     # id_enterprise 对应信息字典写入 json
     rawacc_beone_dict = {"saved_current": -1}
     data_except = []
-    delimiters = ["、", "（", "）"]
-    # 加载模型
-    BBc = BertBase("../../datasets/knowgraph/bert-base-chinese/", "cuda:1")
+    delimiters = ["，", "、", "（", "）"]
     excel_data_original_all = excel_datas_merge[6][0][1] + excel_datas_merge[7][0][1]
     logging.info(f"excel_data_all：{len(excel_data_original_all)}")
     # 加载数据，去重
@@ -80,6 +78,9 @@ def RawAcc_BEONE(excel_datas_merge, catalogue_match_datas):
     logging.info(f"match_data：{len(match_data)}")
     logging.info(f"match_data_simple：{len(match_data_simple)}")
 
+    # 加载模型
+    BBc = BertBase("../../datasets/knowgraph/bert-base-chinese/", "cuda:1", catalogue_data, match_data_simple, batch_size=1024)
+
     # 进度条及预估时间
     start_time = time.time()
     current = -1
@@ -97,11 +98,12 @@ def RawAcc_BEONE(excel_datas_merge, catalogue_match_datas):
 
     # for excel_data_item in [excel_data[i:i+1] for i in range(0, len(excel_data), 1)]:
     for current in range(begin, total):
-        excel_data_item = excel_data[current]
+
+        excel_data_item = [excel_data[current]]
+        progress_bar(start_time, total, current)
 
         # 输出及保存
         if current % 10 == 0 and current != rawacc_beone_dict["saved_current"] and current != 0:
-            progress_bar(start_time, total, current)
             # 中途保存
             rawacc_beone_dict["saved_current"] = current
             rawacc_beone_dict_json_str = json.dumps(rawacc_beone_dict, indent=4, ensure_ascii=False)
@@ -109,8 +111,8 @@ def RawAcc_BEONE(excel_datas_merge, catalogue_match_datas):
                 json_file.write(rawacc_beone_dict_json_str)
             logging.info(f"saved {current}")
 
-        similarities_catalogue, similarity_catalogue_indexs = BBc.train(excel_data_item, catalogue_data, batch_size=1024)
-        similarities_match, similarity_match_indexs = BBc.train(excel_data_item, match_data_simple, batch_size=1024)
+        similarities_catalogue, similarity_catalogue_indexs = BBc.train(excel_data_item, "catalogue", batch_size=1024)
+        similarities_match, similarity_match_indexs = BBc.train(excel_data_item, "match", batch_size=1024)
         for index, similar in enumerate(similarities_catalogue):
             # 构建匹配映射，首先匹配catalogue_datas；再匹配手工匹配度；比较相似度，选最优
             # 匹配catalogue_data相似度高

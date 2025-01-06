@@ -190,16 +190,19 @@ def get_indust_encode(class_industrys, industry):
 
 
 # 划分数据集
-def dataset_part(excel_datas_merge, industry_data):
-    industry_dict = {item: [] for item in excel_datas_merge[0][0][1]}
+def dataset_part(excel_datas_merge, industry_data, id_md5_dict):
+    industry_dict = {item: OrderedSet() for item in excel_datas_merge[0][0][1]}
     industry_train_dict = {item: [] for item in excel_datas_merge[0][0][1]}
     industry_valid_dict = {item: [] for item in excel_datas_merge[0][0][1]}
     data_except = []
     # 字典数据写入数据集字典
     for item in range(excel_datas_merge[0][1]):
         # 企业为产废企业，行业为字符串，企业数据完整性高
-        if excel_datas_merge[2][0][1][item] == "QYSX_CF" and isinstance(excel_datas_merge[0][0][1][item], str) and excel_datas_merge[0][0][0][item] in industry_data[0]['0']:
-            industry_dict[excel_datas_merge[0][0][1][item]].append(excel_datas_merge[0][0][0][item])
+        if excel_datas_merge[0][0][1][item] and isinstance(excel_datas_merge[0][0][1][item], str):
+            if excel_datas_merge[2][0][1][item] == "QYSX_CF" and id_md5_dict[excel_datas_merge[0][0][0][item]] in industry_data[0][0]['0']:
+                industry_dict[excel_datas_merge[0][0][1][item]].append(excel_datas_merge[0][0][0][item])
+            else:
+                data_except.append(excel_datas_merge[2][0][1][item])
         else:
             data_except.append(excel_datas_merge[2][0][1][item])
     # 划分数据集
@@ -215,7 +218,12 @@ def dataset_part(excel_datas_merge, industry_data):
     logging.info("dataset_part")
     logging.info(len(data_except))
     # industry_all_list 为 excel_datas_merge[0][0] 中 enterprise 的元素位置
-    dataset_part_dict = {"all": industry_train_list + industry_valid_list, "train": industry_train_list, "valid": industry_valid_list}
+    dataset_part_dict = {
+         "all": industry_train_list + industry_valid_list,
+         "train": industry_train_list, "valid": industry_valid_list,
+         "all_len": len(industry_train_list) + len(industry_valid_list),
+         "train_len": len(industry_train_list), "valid_len": len(industry_valid_list),
+    }
     dataset_part_dict_json_str = json.dumps(dataset_part_dict, indent=4, ensure_ascii=False)
     with open(os.path.join(excel_path, 'dataset_part_dict.json'), 'w') as json_file:
         json_file.write(dataset_part_dict_json_str)
@@ -248,7 +256,7 @@ def split_list(lst, ratios, num_splits):
 
 
 # 写入txt文件
-def write_all_txt(excel_datas_merge, id_md5_dict, indexs):
+def write_all_txt(excel_datas_merge, id_md5_dict, indexs, enterprise_data_integrity_dict):
     rel_list = [
         "industry", "enterprise", "enttype", "areacode", "HW", "waste", "material", "product", "HWwaste"
     ]
@@ -259,12 +267,27 @@ def write_all_txt(excel_datas_merge, id_md5_dict, indexs):
             "obj": [],
         }
         # [0, 2, 3]，list 为读取到的数据在 excel_datas_merge 中的位置
-        if rel_list[index] in ["industry", "enterprise", "enttype", "areacode"]:
+        if rel_list[index] in ["industry"]:
             # 企业id——行业
-            logging.info("三元组：企业md5——行业、企业类型、区划")
+            logging.info("三元组：企业md5——行业")
+            for item_index, item in enumerate(excel_datas_merge[index][0][0]):
+                # 验证数据完整性，行业不重复且不为空，必须有 "waste", "material", "product"
+                if excel_datas_merge[index][0][0][item_index] in enterprise_data_integrity_dict["0"]:
+                    if id_md5_dict[excel_datas_merge[index][0][0][item_index]] not in data_triples["sub"]:
+                        data_triples["sub"].append(id_md5_dict[excel_datas_merge[index][0][0][item_index]])
+                        data_triples["rel"].append(rel_list[index])
+                        data_triples["obj"].append(excel_datas_merge[index][0][1][item_index])
+                    else:
+                        if excel_datas_merge[index][0][1][item_index] and isinstance(excel_datas_merge[index][0][1][item_index], str):
+                            sub_index = data_triples["sub"].index(id_md5_dict[excel_datas_merge[index][0][0][item_index]])
+                            data_triples["rel"][sub_index] = rel_list[index]
+                            data_triples["obj"][sub_index] = excel_datas_merge[index][0][1][item_index]
+        elif rel_list[index] in ["enterprise", "enttype", "areacode"]:
+            # 企业id——企业名称、企业类型、区划
+            logging.info("三元组：企业md5——企业名称、企业类型、区划")
             for item_index, item in enumerate(excel_datas_merge[index][0][0]):
                 # 验证数据完整性，必须有 "waste", "material", "product"
-                if enterprise_data_integrity(excel_datas_merge, excel_datas_merge[index][0][0][item_index]):
+                if excel_datas_merge[index][0][0][item_index] in enterprise_data_integrity_dict["0"]:
                     data_triples["sub"].append(id_md5_dict[excel_datas_merge[index][0][0][item_index]])
                     data_triples["rel"].append(rel_list[index])
                     data_triples["obj"].append(excel_datas_merge[index][0][1][item_index])
@@ -275,7 +298,7 @@ def write_all_txt(excel_datas_merge, id_md5_dict, indexs):
             data_except = []
             # 存入字典
             for item_index, item in enumerate(excel_datas_merge[index][0][0]):
-                if enterprise_data_integrity(excel_datas_merge, excel_datas_merge[index][0][0][item_index]):
+                if excel_datas_merge[index][0][0][item_index] in enterprise_data_integrity_dict["0"]:
                     try:
                         sub = excel_datas_merge[index][0][0][item_index]
                         obj = excel_datas_merge[index][0][1][item_index][:4]
@@ -301,7 +324,7 @@ def write_all_txt(excel_datas_merge, id_md5_dict, indexs):
             data_except = []
             # 存入字典
             for item_index, item in enumerate(excel_datas_merge[index][0][0]):
-                if enterprise_data_integrity(excel_datas_merge, excel_datas_merge[index][0][0][item_index]):
+                if excel_datas_merge[index][0][0][item_index] in enterprise_data_integrity_dict["0"]:
                     try:
                         sub = excel_datas_merge[index][0][0][item_index]
                         obj = excel_datas_merge[index][0][1][item_index]
@@ -328,7 +351,7 @@ def write_all_txt(excel_datas_merge, id_md5_dict, indexs):
             dealRawAcc_data = dealRawAcc_BERT_dict(excel_datas_merge[index][0])
             # 存入字典
             for item_index, item in enumerate(dealRawAcc_data[0]):
-                if enterprise_data_integrity(excel_datas_merge, excel_datas_merge[index][0][0][item_index]):
+                if dealRawAcc_data[0][item_index] in enterprise_data_integrity_dict["0"]:
                     if dealRawAcc_data[1][item_index] != "蚶":
                         try:
                             sub = dealRawAcc_data[0][item_index]
@@ -380,12 +403,20 @@ def write_all_txt(excel_datas_merge, id_md5_dict, indexs):
 
 
 # 计算企业数据完整性
-def enterprise_data_integrity(excel_datas_merge, id):
-    # 验证数据完整性，必须有 "waste", "material", "product"
-    if id in excel_datas_merge[5][0][0] and id in excel_datas_merge[6][0][0] and id in excel_datas_merge[7][0][0]:
-        return True
-    else:
-        return False
+def enterprise_data_integrity(excel_datas_merge):
+    enterprise_data_integrity_dict = {
+        "0": []
+    }
+    for item_index, item in enumerate(excel_datas_merge[0][0][0]):
+        # 验证数据完整性，必须有 "waste", "material", "product"
+        if item in excel_datas_merge[5][0][0] and item in excel_datas_merge[6][0][0] and item in excel_datas_merge[7][0][0]:
+            enterprise_data_integrity_dict["0"].append(item)
+        else:
+            continue
+    # enterprise_data_integrity 对应信息字典写入 json
+    enterprise_data_integrity_dict_json_str = json.dumps(enterprise_data_integrity_dict, indent=4, ensure_ascii=False)
+    with open(os.path.join(excel_path, 'enterprise_data_integrity_dict.json'), 'w') as json_file:
+        json_file.write(enterprise_data_integrity_dict_json_str)
 
 
 # 原料、产品实体链接
@@ -394,27 +425,23 @@ def dealRawAcc_BERT_dict(excel_data):
     rawaccs_ex = []
     data_except = []
     data_item_except = []
-    delimiters = ["、", "（", "）"]
-    with open(os.path.join(excel_path, 'rawacc_beone_dict.json'), 'r') as json_file:
+    delimiters = ["，", "、", "（", "）"]
+    with open(os.path.join(excel_path, 'rawacc_beone_max_dict_simple.json'), 'r') as json_file:
         rawacc_beone_dict = json.loads(str(json_file.read()))
     for item in range(len(excel_data[list(excel_data.keys())[0]])):
-        try:
-            # 分割内容
-            regex_pattern = '|'.join(map(re.escape, delimiters))
-            rawacc_list = re.split(regex_pattern, excel_data[list(excel_data.keys())[1]][item].strip().replace(" ", ""))
-            for rawacc in rawacc_list:
-                if rawacc:
-                    try:
-                        rawaccs_ex.append(rawacc_beone_dict[rawacc])
-                        enterids_ex.append(excel_data[list(excel_data.keys())[0]][item])
-                    except:
-                        data_except.append(rawacc)
-                        continue
-                else:
-                    data_item_except.append(excel_data[list(excel_data.keys())[1]][item])
-        except:
-            data_item_except.append(excel_data[list(excel_data.keys())[1]][item])
-            continue
+        # 分割内容
+        regex_pattern = '|'.join(map(re.escape, delimiters))
+        rawacc_list = re.split(regex_pattern, excel_data[list(excel_data.keys())[1]][item].strip().replace(" ", ""))
+        for rawacc in rawacc_list:
+            if rawacc:
+                try:
+                    rawaccs_ex.append(rawacc_beone_dict[rawacc])
+                    enterids_ex.append(excel_data[list(excel_data.keys())[0]][item])
+                except:
+                    data_except.append(rawacc)
+                    continue
+            else:
+                data_item_except.append(excel_data[list(excel_data.keys())[1]][item])
     logging.info("dealRawAcc_BERT")
     logging.info(len(data_item_except))
     logging.info(data_except)
@@ -532,11 +559,18 @@ if __name__ == '__main__':
     # list 为读取到的数据在 excel_datas_merge 中的位置0, 10, 1, 2, 4, 5
     # 0, 1, 2, 3, 4, 5, 6, 7, 8
     # "industry", "enterprise", "enttype", "areacode", "HW", "waste", "material", "product", "HWwaste"
-    write_all_txt(excel_datas_merge, id_md5_dict, [0, 1, 2, 3, 4, 5, 6, 7, 8])
+    # # 计算企业数据完整性
+    # enterprise_data_integrity(excel_datas_merge)
 
-    """划分数据集"""
-    industry_data = read_all_txt(excel_path + "all/", ["industry"])
-    dataset_part(excel_datas_merge, industry_data)
+    # # 读取数据完整性高企业id
+    # with open(os.path.join(excel_path, 'enterprise_data_integrity_dict.json'), 'r') as file:
+    #     enterprise_data_integrity_dict = eval(file.read())
+    #
+    # write_all_txt(excel_datas_merge, id_md5_dict, [0], enterprise_data_integrity_dict)
+
+    # """划分数据集"""
+    # industry_data = read_all_txt(excel_path + "all/", ["industry"])
+    # dataset_part(excel_datas_merge, industry_data, id_md5_dict)
     # 获取数据集划分
     with open(os.path.join(excel_path, 'dataset_part_dict.json'), 'r') as json_file:
         dataset_part_dict = json.loads(str(json_file.read()))

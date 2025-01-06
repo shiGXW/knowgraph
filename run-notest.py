@@ -569,8 +569,7 @@ if __name__ == '__main__':
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('-name', default='testrun', help='Set run name for saving/restoring models')
-    # parser.add_argument('-name', default='testrun_2024_07_25_09_33_37', help='Set run name for saving/restoring models')
-    parser.add_argument('-data', dest='dataset', default='knowgraph/max/', help='Dataset to use, default: FB15k-237, knowgraph/max/')
+    parser.add_argument('-data', dest='dataset', default='knowgraph/maxDDD/', help='Dataset to use, default: FB15k-237, knowgraph/max/')
     parser.add_argument('-model', dest='model', default='CompGCN', help='Model Name')
     parser.add_argument('-score_func', dest='score_func', default='Transformer', help='Score Function for Link prediction, default: ConvE, Transformer')
     parser.add_argument('-opn', dest='opn', default='corr', help='Composition Operation to be used in CompGCN：sub, mult, corr')
@@ -580,7 +579,7 @@ if __name__ == '__main__':
     parser.add_argument('-batch', dest='batch_size', default=2048, type=int, help='Batch size: 256, 896, 1664')
     parser.add_argument('-print', dest='print_fre', default=10, type=int, help='Printing frequency：Batch num')
     parser.add_argument('-gamma', type=float, default=40.0, help='Margin')
-    parser.add_argument('-gpu', type=str, default='0', help='Set GPU Ids : Eg: For CPU = -1, For Single GPU = 0, 1')
+    parser.add_argument('-gpu', type=str, default='1', help='Set GPU Ids : Eg: For CPU = -1, For Single GPU = 0, 1')
     parser.add_argument('-epoch', dest='max_epochs', type=int, default=500, help='Number of epochs')
     parser.add_argument('-l2', type=float, default=0.0, help='L2 Regularization for Optimizer')
     # ConvE：0.01

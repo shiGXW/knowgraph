@@ -38,6 +38,8 @@ cd /root/GXM/code/knowgraph/D_export/log
 cd /root/GXM/code/knowgraph/D_export/checkpoint
 cd /root/GXM/code/knowgraph/B_data/knowgraph/BERT
 cat BERT_max_run.log
+cd /root/GXM/code/knowgraph/B_data/datasets/knowgraph/maxDDD
+cat rawacc_beone_max_dict_simple.json
 
 # 不使用测试集
 # 模型训练+验证

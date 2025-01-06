@@ -5,7 +5,8 @@ from py2neo import Node, Relationship, Graph, Path, Subgraph
 from py2neo import NodeMatcher, RelationshipMatcher
 
 # 连接数据库
-graph = Graph('http://localhost:7474', auth=('neo4j', 'shi@123456'))
+# graph = Graph('http://localhost:7474', auth=('neo4j', 'shi@123456'))
+graph = Graph('http://192.168.8.168:7474', auth=('neo4j', 'shi@123456'))
 
 
 # 读取保存的全部原始数据
@@ -58,7 +59,7 @@ def creatrelationship(graph, relationship, node1, node2):
 
 # 数据处理及导入数据库——enterprise
 def creatrelationship_deal_enterprise(begin_poi, end_poi, datas, relationship):
-    logging.info("导入数据：" + relationship)
+    logging.info("导入数据：" + str(relationship))
     ## 数据匹配及关系建立
     # 1、从txt中获取已有数据
     # 2、数据处理，获取数据中的键值对，重组为新的键值对，存储为list，元素为字典
@@ -88,7 +89,7 @@ def creatrelationship_deal_enterprise(begin_poi, end_poi, datas, relationship):
         # 键值都不为空
         node1 = {"class": list(item.keys())[0], "value1": item[list(item.keys())[0]]}
         node2 = {"class": list(item.keys())[1], "value1": item[list(item.keys())[1]]}
-        creatrelationship(graph, relationship, node1, node2)
+        creatrelationship(graph, str(relationship), node1, node2)
 
 
 # 数据处理及导入数据库
