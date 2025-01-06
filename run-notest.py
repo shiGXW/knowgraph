@@ -352,7 +352,7 @@ class Runner(object):
                     true_industry_total[self.id2ent[int(label_total[item][0])]] = [self.id2ent[int(label_total[item][1])]]
         # 后处理
         for item in export_info["enterid"]:
-            # 去重并转为list
+            # 去重并转为list，如果键不存在，则返回一个空列表[]
             true_list = list(set(true_industry_total.get(item, [])))
             pred_list = list(set(pred_industry_total.get(item, [])))
             export_info["true_" + rel_list[rel_flag]].append('；'.join(true_list))

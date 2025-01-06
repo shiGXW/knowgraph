@@ -53,7 +53,9 @@ def read_csv(data_path, indexs):
 
 # 原料、产品实体链接
 def RawAcc_BEONE(excel_datas_merge, catalogue_match_datas):
-    rawacc_beone_dict = {}
+    # rawacc_beone_dict = {}
+    # id_enterprise 对应信息字典写入 json
+    rawacc_beone_dict = {"saved_current": -1}
     data_except = []
     delimiters = ["、", "（", "）"]
     # 加载模型
@@ -81,12 +83,31 @@ def RawAcc_BEONE(excel_datas_merge, catalogue_match_datas):
     # 进度条及预估时间
     start_time = time.time()
     current = -1
-    total = 1 + len(excel_data)//100
+    begin = 0
+    total = len(excel_data)
+    # total = 1 + len(excel_data)//100
 
-    for excel_data_item in [excel_data[i:i+100] for i in range(0, len(excel_data), 100)]:
-        # 输出
-        current = current + 1
-        progress_bar(start_time, total, current)
+    # 是否继续之前保存
+    if os.path.exists(os.path.join(excel_path, 'rawacc_beone_max_dict_simple.json')):
+        with open(os.path.join(excel_path, 'rawacc_beone_max_dict_simple.json'), 'r') as json_file:
+            rawacc_beone_dict = json.loads(str(json_file.read()))
+        begin = rawacc_beone_dict["saved_current"]
+
+    logging.info(f"Begin index: {begin}")
+
+    # for excel_data_item in [excel_data[i:i+1] for i in range(0, len(excel_data), 1)]:
+    for current in range(begin, total):
+        excel_data_item = excel_data[current]
+
+        # 输出及保存
+        if current % 10 == 0 and current != rawacc_beone_dict["saved_current"] and current != 0:
+            progress_bar(start_time, total, current)
+            # 中途保存
+            rawacc_beone_dict["saved_current"] = current
+            rawacc_beone_dict_json_str = json.dumps(rawacc_beone_dict, indent=4, ensure_ascii=False)
+            with open(os.path.join(excel_path, 'rawacc_beone_max_dict_simple.json'), 'w') as json_file:
+                json_file.write(rawacc_beone_dict_json_str)
+            logging.info(f"saved {current}")
 
         similarities_catalogue, similarity_catalogue_indexs = BBc.train(excel_data_item, catalogue_data, batch_size=1024)
         similarities_match, similarity_match_indexs = BBc.train(excel_data_item, match_data_simple, batch_size=1024)
