@@ -271,7 +271,7 @@ def write_all_txt(excel_datas_merge, id_md5_dict, indexs, enterprise_data_integr
             # 企业id——行业
             logging.info("三元组：企业md5——行业")
             for item_index, item in enumerate(excel_datas_merge[index][0][0]):
-                # 验证数据完整性，行业不重复且不为空，必须有 "waste", "material", "product"
+                # 验证数据完整性，行业不重复且可为空，必须有 "waste", "material", "product"
                 if excel_datas_merge[index][0][0][item_index] in enterprise_data_integrity_dict["0"]:
                     if id_md5_dict[excel_datas_merge[index][0][0][item_index]] not in data_triples["sub"]:
                         data_triples["sub"].append(id_md5_dict[excel_datas_merge[index][0][0][item_index]])
@@ -523,12 +523,13 @@ if __name__ == '__main__':
 
     """获取数据"""
 
-    # # list 为文件名，0,1,2,3,4,5,6,
-    # excel_datas = read_csv(excel_path, [
-    #     "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16"
-    # ])
-    # # 数据整合——全部数据：excel_datas_merge.txt
-    # excel_datas_merge = data_merge(excel_datas)
+    # list 为文件名，0,1,2,3,4,5,6,
+    excel_datas = read_csv(excel_path, [
+        "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16"
+    ])
+    # 数据整合——全部数据：excel_datas_merge.txt
+    # 仅将全部数据载入
+    data_merge(excel_datas)
 
     # 读取全部数据
     with open(os.path.join(excel_path, 'excel_datas_merge.txt'), 'r') as file:
@@ -536,9 +537,10 @@ if __name__ == '__main__':
 
     """数据统计"""
 
-    # # id对应企业名：id_enterprise_dict.json
-    # # id对应md5值：id_md5_dict.json
-    # data_stat_id_md5(excel_datas_merge)
+    # id对应企业名：id_enterprise_dict.json
+    # id对应md5值：id_md5_dict.json
+    data_stat_id_md5(excel_datas_merge)
+
     # 获取id对应企业名
     with open(os.path.join(excel_path, 'id_enterprise_dict.json'), 'r') as json_file:
         id_enterprise_dict = json.loads(str(json_file.read()))
@@ -555,22 +557,26 @@ if __name__ == '__main__':
 
     """知识图谱及模型训练"""
 
-    # 所有数据（原料、产品实体链接后）写入 txt，企业 id 转为 md5 值
+    """所有数据写入 txt"""
+    # 企业 id - industry 唯一；企业 id 转为 md5 值；原料、产品进行实体链接
     # list 为读取到的数据在 excel_datas_merge 中的位置0, 10, 1, 2, 4, 5
     # 0, 1, 2, 3, 4, 5, 6, 7, 8
     # "industry", "enterprise", "enttype", "areacode", "HW", "waste", "material", "product", "HWwaste"
-    # # 计算企业数据完整性
-    # enterprise_data_integrity(excel_datas_merge)
 
-    # # 读取数据完整性高企业id
-    # with open(os.path.join(excel_path, 'enterprise_data_integrity_dict.json'), 'r') as file:
-    #     enterprise_data_integrity_dict = eval(file.read())
-    #
-    # write_all_txt(excel_datas_merge, id_md5_dict, [0], enterprise_data_integrity_dict)
+    # 计算企业数据完整性
+    enterprise_data_integrity(excel_datas_merge)
 
-    # """划分数据集"""
-    # industry_data = read_all_txt(excel_path + "all/", ["industry"])
-    # dataset_part(excel_datas_merge, industry_data, id_md5_dict)
+    # 读取数据完整性高企业id
+    with open(os.path.join(excel_path, 'enterprise_data_integrity_dict.json'), 'r') as file:
+        enterprise_data_integrity_dict = eval(file.read())
+
+    write_all_txt(excel_datas_merge, id_md5_dict, [0], enterprise_data_integrity_dict)
+
+    """划分数据集dataset_part_dict.json"""
+    # 为保证数据质量，只取行业填选完整的企业，且行业小类占有企业总数量的0.1%及以上，即至少有25家企业
+    industry_data = read_all_txt(excel_path + "all/", ["industry"])
+    dataset_part(excel_datas_merge, industry_data, id_md5_dict)
+
     # 获取数据集划分
     with open(os.path.join(excel_path, 'dataset_part_dict.json'), 'r') as json_file:
         dataset_part_dict = json.loads(str(json_file.read()))

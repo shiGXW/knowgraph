@@ -37,9 +37,11 @@ cd /root/GXM/code/knowgraph
 cd /root/GXM/code/knowgraph/D_export/log
 cd /root/GXM/code/knowgraph/D_export/checkpoint
 cd /root/GXM/code/knowgraph/B_data/knowgraph/BERT
-cat BERT_max_run.log
+cat RawAccdeal_BERT_run.log
 cd /root/GXM/code/knowgraph/B_data/datasets/knowgraph/maxDDD
 cat rawacc_beone_max_dict_simple.json
+cd /root/GXM/code/knowgraph/B_data/knowgraph/Neo
+cat data2neo4jDDD_run.log
 
 # 不使用测试集
 # 模型训练+验证
@@ -51,11 +53,14 @@ kill -9 $(pgrep -f './run-StarE.py')
 nohup python -u ./run-notest.py -restore True -name testrun_2024_07_25_09_33_37 > /dev/null 2>&1 &
 kill -9 $(pgrep -f './run-notest.py')
 # 实体链接
-nohup python -u RawAccdeal-BERTDDD-simple.py >> ./BERT_max_run.log 2>&1 &
+nohup python -u RawAccdeal-BERTDDD-simple.py >> ./RawAccdeal_BERT_run.log 2>&1 &
 kill -9 $(pgrep -f 'RawAccdeal-BERTDDD-simple.py')
 # 数据处理
-nohup python -u datadeal-allDDD-notest.py >> ./run.log 2>&1 &
+nohup python -u datadeal-allDDD-notest.py >> ./datadeal_all_run.log 2>&1 &
 kill -9 $(pgrep -f 'datadeal-allDDD-notest.py')
+# 导入neo4j
+nohup python -u data2neo4jDDD.py >> ./data2neo4jDDD_run.log 2>&1 &
+kill -9 $(pgrep -f 'data2neo4jDDD.py')
 
 # 使用测试集
 nohup python -u ./run.py > /dev/null 2>&1 &
