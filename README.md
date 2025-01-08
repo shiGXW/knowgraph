@@ -40,6 +40,8 @@ cd /root/GXM/code/knowgraph/B_data/knowgraph/BERT
 cat RawAccdeal_BERT_run.log
 cd /root/GXM/code/knowgraph/B_data/datasets/knowgraph/maxDDD
 cat rawacc_beone_max_dict_simple.json
+cd /root/GXM/code/knowgraph/B_data/knowgraph/datasetPart
+cat datadeal_all_run.log
 cd /root/GXM/code/knowgraph/B_data/knowgraph/Neo
 cat data2neo4jDDD_run.log
 

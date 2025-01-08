@@ -523,13 +523,13 @@ if __name__ == '__main__':
 
     """获取数据"""
 
-    # list 为文件名，0,1,2,3,4,5,6,
-    excel_datas = read_csv(excel_path, [
-        "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16"
-    ])
-    # 数据整合——全部数据：excel_datas_merge.txt
-    # 仅将全部数据载入
-    data_merge(excel_datas)
+    # # list 为文件名，0,1,2,3,4,5,6,
+    # excel_datas = read_csv(excel_path, [
+    #     "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16"
+    # ])
+    # # 数据整合——全部数据：excel_datas_merge.txt
+    # # 仅将全部数据载入
+    # data_merge(excel_datas)
 
     # 读取全部数据
     with open(os.path.join(excel_path, 'excel_datas_merge.txt'), 'r') as file:
@@ -537,9 +537,9 @@ if __name__ == '__main__':
 
     """数据统计"""
 
-    # id对应企业名：id_enterprise_dict.json
-    # id对应md5值：id_md5_dict.json
-    data_stat_id_md5(excel_datas_merge)
+    # # id对应企业名：id_enterprise_dict.json
+    # # id对应md5值：id_md5_dict.json
+    # data_stat_id_md5(excel_datas_merge)
 
     # 获取id对应企业名
     with open(os.path.join(excel_path, 'id_enterprise_dict.json'), 'r') as json_file:
@@ -558,19 +558,19 @@ if __name__ == '__main__':
     """知识图谱及模型训练"""
 
     """所有数据写入 txt"""
-    # 企业 id - industry 唯一；企业 id 转为 md5 值；原料、产品进行实体链接
+    # 企业 id - industry 唯一；企业 id 转为 md5 值；原料、产品进行实体链接；去重
     # list 为读取到的数据在 excel_datas_merge 中的位置0, 10, 1, 2, 4, 5
     # 0, 1, 2, 3, 4, 5, 6, 7, 8
     # "industry", "enterprise", "enttype", "areacode", "HW", "waste", "material", "product", "HWwaste"
 
-    # 计算企业数据完整性
-    enterprise_data_integrity(excel_datas_merge)
+    # # 计算企业数据完整性
+    # enterprise_data_integrity(excel_datas_merge)
 
     # 读取数据完整性高企业id
     with open(os.path.join(excel_path, 'enterprise_data_integrity_dict.json'), 'r') as file:
         enterprise_data_integrity_dict = eval(file.read())
 
-    write_all_txt(excel_datas_merge, id_md5_dict, [0], enterprise_data_integrity_dict)
+    write_all_txt(excel_datas_merge, id_md5_dict, [0, 1, 2, 3, 4, 5, 6, 7, 8], enterprise_data_integrity_dict)
 
     """划分数据集dataset_part_dict.json"""
     # 为保证数据质量，只取行业填选完整的企业，且行业小类占有企业总数量的0.1%及以上，即至少有25家企业
