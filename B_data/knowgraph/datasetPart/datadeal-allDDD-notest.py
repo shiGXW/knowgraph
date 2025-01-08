@@ -570,12 +570,13 @@ if __name__ == '__main__':
     with open(os.path.join(excel_path, 'enterprise_data_integrity_dict.json'), 'r') as file:
         enterprise_data_integrity_dict = eval(file.read())
 
-    write_all_txt(excel_datas_merge, id_md5_dict, [0, 1, 2, 3, 4, 5, 6, 7, 8], enterprise_data_integrity_dict)
+    # write_all_txt(excel_datas_merge, id_md5_dict, [0, 1, 2, 3, 4, 5, 6, 7, 8], enterprise_data_integrity_dict)
 
     """划分数据集dataset_part_dict.json"""
-    # 为保证数据质量，只取行业填选完整的企业，且行业小类占有企业总数量的0.1%及以上，即至少有25家企业
-    industry_data = read_all_txt(excel_path + "all/", ["industry"])
-    dataset_part(excel_datas_merge, industry_data, id_md5_dict)
+
+    # # 为保证数据质量，只取行业填选完整的企业，且行业小类占有企业总数量的0.1%及以上，即至少有25家企业
+    # industry_data = read_all_txt(excel_path + "all/", ["industry"])
+    # dataset_part(excel_datas_merge, industry_data, id_md5_dict)
 
     # 获取数据集划分
     with open(os.path.join(excel_path, 'dataset_part_dict.json'), 'r') as json_file:

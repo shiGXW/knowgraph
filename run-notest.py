@@ -336,7 +336,7 @@ class Runner(object):
             export_info["enterid"].add(self.id2ent[sub_total[item]])
             # 预测阈值
             # print(target_pred_total[item])
-            if target_pred_total[item] >= np.sum(target_pred_total) * self.p.accuracy_th:
+            if target_pred_total[item] >= self.p.accuracy_th:
                 # 存在多个obj
                 if sub_total[item] in pred_industry_total.keys():
                     pred_industry_total[self.id2ent[int(sub_total[item])]].append(self.id2ent[obj_total[item]])
@@ -438,8 +438,9 @@ class Runner(object):
                 sub, rel, obj, label = self.read_batch(batch, split)
                 pred = self.model.forward(sub, rel)
                 b_range = torch.arange(pred.size()[0], device=self.device)
-                # 预测概率——sub 对应于每一个 obj 预测的置信度
+                # 预测概率——sub 对应于每一个 obj 预测的置信度，未应用torch.sigmoid
                 target_pred = pred[b_range, obj]
+                # 新结果，tail 预测
                 if mode == 'tail_batch':
                     # 存入三元组
                     sub_total = np.concatenate((sub_total, sub.cpu()), axis=0)
@@ -453,7 +454,9 @@ class Runner(object):
                         label_nonzero[index, 0] = sub[label_nonzero[index, 0]]
                         label_nonzero[index, 1] = label_nonzero[index, 1]
                     label_total = np.concatenate((label_total, label_nonzero), axis=0)
-                    target_pred_total = np.concatenate((target_pred_total, target_pred.cpu()), axis=0)
+                    # 所有预测概率——应用sigmoid函数
+                    target_pred_total = np.concatenate((target_pred_total, torch.sigmoid(target_pred).cpu()), axis=0)
+                # 原结果
                 pred = torch.where(label.bool(), -torch.ones_like(pred) * 10000000, pred)
                 pred[b_range, obj] = target_pred
                 ranks = 1 + torch.argsort(
@@ -579,7 +582,7 @@ if __name__ == '__main__':
     parser.add_argument('-batch', dest='batch_size', default=2048, type=int, help='Batch size: 256, 896, 1664')
     parser.add_argument('-print', dest='print_fre', default=10, type=int, help='Printing frequency：Batch num')
     parser.add_argument('-gamma', type=float, default=40.0, help='Margin')
-    parser.add_argument('-gpu', type=str, default='1', help='Set GPU Ids : Eg: For CPU = -1, For Single GPU = 0, 1')
+    parser.add_argument('-gpu', type=str, default='0', help='Set GPU Ids : Eg: For CPU = -1, For Single GPU = 0, 1')
     parser.add_argument('-epoch', dest='max_epochs', type=int, default=500, help='Number of epochs')
     parser.add_argument('-l2', type=float, default=0.0, help='L2 Regularization for Optimizer')
     # ConvE：0.01
@@ -600,7 +603,7 @@ if __name__ == '__main__':
     parser.add_argument('-lbl_smooth', dest='lbl_smooth', type=float, default=0.1, help='Label Smoothing')
     parser.add_argument('-num_workers', type=int, default=0, help='Number of processes to construct batches')
     parser.add_argument('-seed', dest='seed', default=7588, type=int, help='Seed for randomization')
-    parser.add_argument('-accuracy_th', type=float, default=-10, help='预测阈值')
+    parser.add_argument('-accuracy_th', type=float, default=0.5, help='预测阈值')
 
     parser.add_argument('-restore', dest='restore', default=False, type=bool, help='Restore from the previously saved model')
     parser.add_argument('-bias', dest='bias', action='store_true', help='Whether to use bias in the model')

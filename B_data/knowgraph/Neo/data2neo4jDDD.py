@@ -7,6 +7,7 @@ from py2neo import NodeMatcher, RelationshipMatcher
 # 连接数据库
 # graph = Graph('http://localhost:7474', auth=('neo4j', 'shi@123456'))
 # graph = Graph('http://192.168.8.168:7474', auth=('neo4j', 'shi@123456'))
+logging.info("连接数据库")
 graph = Graph('http://192.168.8.108:7474', auth=('neo4j', 'shi@123456'))
 
 
