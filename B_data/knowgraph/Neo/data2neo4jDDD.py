@@ -7,7 +7,7 @@ from py2neo import NodeMatcher, RelationshipMatcher
 # 连接数据库
 # graph = Graph('http://localhost:7474', auth=('neo4j', 'shi@123456'))
 # graph = Graph('http://192.168.8.168:7474', auth=('neo4j', 'shi@123456'))
-logging.info("连接数据库")
+print("连接数据库")
 graph = Graph('http://192.168.8.108:7474', auth=('neo4j', 'shi@123456'))
 
 
@@ -27,7 +27,7 @@ def read_all_txt(data_path, indexs, header=None):
             for column in excel_data.columns:
                 data_dict[column].append(excel_data[column][item])
         excel_datas_merge.append((data_dict, excel_data.shape[0]))
-    logging.info("read excels")
+    print("read excels")
     return excel_datas_merge
 
 
@@ -61,7 +61,7 @@ def creatrelationship(graph, relationship, node1, node2):
 
 # 数据处理及导入数据库——model
 def creatrelationship_deal_model(rel_list, call_dict, all_datas):
-    logging.info("导入数据")
+    print("导入数据")
     ## 数据匹配及关系建立
     # 1、从txt中获取已有数据
     # 2、数据处理，获取数据中的键值对，重组为新的键值对，存储为list，元素为字典
@@ -73,7 +73,7 @@ def creatrelationship_deal_model(rel_list, call_dict, all_datas):
     for datas in all_datas:
         for index, item in enumerate(datas[0][1]):
             rel_temp = rel_list.index(item)
-            # logging.info(item.keys())
+            # print(item.keys())
             # 键为空，键值对不操作
             if pd.isna(datas[0][0][index]):
                 continue
@@ -91,7 +91,7 @@ def creatrelationship_deal_model(rel_list, call_dict, all_datas):
 
 # 数据处理及导入数据库——enterprise
 def creatrelationship_deal_enterprise(begin_poi, end_poi, datas, relationship):
-    logging.info("导入数据：" + str(relationship))
+    print("导入数据：" + str(relationship))
     ## 数据匹配及关系建立
     # 1、从txt中获取已有数据
     # 2、数据处理，获取数据中的键值对，重组为新的键值对，存储为list，元素为字典
@@ -106,9 +106,9 @@ def creatrelationship_deal_enterprise(begin_poi, end_poi, datas, relationship):
             begin_poi: item,
             end_poi: datas[relationship]['2'][index],
         })
-    # logging.info(data_list)
+    # print(data_list)
     for item in data_list:
-        # logging.info(item.keys())
+        # print(item.keys())
         # 键为空，键值对不操作
         if pd.isna(item[list(item.keys())[0]]):
             continue
@@ -127,7 +127,7 @@ def creatrelationship_deal_enterprise(begin_poi, end_poi, datas, relationship):
 # 数据处理及导入数据库
 def creatrelationship_deal(begin_poi, end_poi, excelpath, relationship):
     flagio = 0
-    logging.info("导入数据：" + relationship)
+    print("导入数据：" + relationship)
     ## 数据匹配及关系建立
     # 1、从excel中获取已有数据
     # 2、数据处理，获取数据中的键值对，重组为新的键值对，存储为list，元素为字典
@@ -137,18 +137,18 @@ def creatrelationship_deal(begin_poi, end_poi, excelpath, relationship):
     # data = [{"code": "271-001-02", "nature": "颜色气味"}, {"code": "271-001-02", "nature": "颜色气味"}]
     # 4、处理data可得node1与node2,循环调用creatrelationship写入数据库
     data_excel = pd.read_excel(excelpath, header=0)
-    # logging.info(type(data))
+    # print(type(data))
     data_arr = data_excel.values
-    # logging.info(data_arr)
+    # print(data_arr)
     data_list = []
     for item in data_arr:
         data_list.append({
             begin_poi: item[0],
             end_poi: item[1],
         })
-    # logging.info(data_list)
+    # print(data_list)
     for item in data_list:
-        # logging.info(item.keys())
+        # print(item.keys())
         # 键为空，键值对不操作
         if pd.isna(item[list(item.keys())[0]]):
             continue
@@ -162,9 +162,9 @@ def creatrelationship_deal(begin_poi, end_poi, excelpath, relationship):
         node1 = {"class": list(item.keys())[0], "value1": item[list(item.keys())[0]]}
         node2 = {"class": list(item.keys())[1], "value1": item[list(item.keys())[1]]}
         # if flagio == 0:
-        #     logging.info(node1)
+        #     print(node1)
         #     flagio = 1
-        # logging.info(node1)
+        # print(node1)
         creatrelationship(graph, relationship, node1, node2)
 
 
@@ -193,7 +193,7 @@ if __name__ == '__main__':
     }
     creatrelationship_deal_model(rel_list, call_dict, all_datas)
 
-    logging.info("Done!!!")
+    print("Done!!!")
 
     # """获取数据(全部)"""
     # # 关系列表
