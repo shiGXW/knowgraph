@@ -5,6 +5,7 @@ from B_data.data_loader import *
 # sys.path.append('./')
 from C_models.models import *
 import pandas as pd
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, hamming_loss, log_loss
 
 
 class Runner(object):
@@ -316,8 +317,10 @@ class Runner(object):
             "enterid": OrderedSet(),
             "pred_" + rel_list[rel_flag]: [],
             "true_" + rel_list[rel_flag]: [],
-            rel_list[rel_flag] + "_accuracy": [],
+            rel_list[rel_flag] + "_metrics": [],
         }
+        true_list_metrics = []
+        pred_list_metrics = []
         # id_labels_total = { "0": [ 27, 32, 75, 92, 119 ], ... }
         # 获取 md5 值对应的真实id
         with open(os.path.join(self.p.data_dir + self.p.dataset, 'id_md5_dict.json'), 'r') as json_file:
@@ -350,30 +353,57 @@ class Runner(object):
                     true_industry_total[self.id2ent[int(label_total[item][0])]].append(self.id2ent[int(label_total[item][1])])
                 else:
                     true_industry_total[self.id2ent[int(label_total[item][0])]] = [self.id2ent[int(label_total[item][1])]]
-        # 后处理
+        # 对企业预测进行去重
         for item in export_info["enterid"]:
             # 去重并转为list，如果键不存在，则返回一个空列表[]
             true_list = list(set(true_industry_total.get(item, [])))
+            # true_list转id，用于评估指标
+            true_list_metric_temp = [0 for _ in range(len(self.ent2id))]
+            for item in true_list:
+                true_list_metric_temp[self.ent2id[item]] = 1
+            true_list_metrics.append(true_list_metric_temp)
             pred_list = list(set(pred_industry_total.get(item, [])))
+            # pred_list转id，用于评估指标
+            pred_list_metric_temp = [0 for _ in range(len(self.ent2id))]
+            for item in true_list:
+                pred_list_metric_temp[self.ent2id[item]] = 1
+            pred_list_metrics.append(pred_list_metric_temp)
             export_info["true_" + rel_list[rel_flag]].append('；'.join(true_list))
             export_info["pred_" + rel_list[rel_flag]].append('；'.join(pred_list))
-            export_info[rel_list[rel_flag] + "_accuracy"].append(
-                len(set(true_list) & set(pred_list)) / (len(true_list) if len(true_list) > len(pred_list) else len(pred_list))
-            )
         # pred_targets = torch.where(pred_targets, label, -1).to("cpu")
-        # true_targets = label.to("cpu")
-        # # 计算准确率
-        # torch.eq(pred_targets, true_targets).sum().float().item()
+        # 多标签分类：计算各项评估指标
+        # recision_score：计算精确率；recall_score：计算召回率；f1_score：计算F1分数；accuracy_score：计算准确率
+        # hamming_loss：计算汉明损失；log_loss（也称为multilabel_log_loss）：计算多标签对数损失
+        precision = precision_score(true_list_metrics, pred_list_metrics, average='macro')
+        export_info[rel_list[rel_flag] + "_metrics"].append("precision")
+        export_info[rel_list[rel_flag] + "_metrics"].append(precision)
+        recall = recall_score(true_list_metrics, pred_list_metrics, average='macro')
+        export_info[rel_list[rel_flag] + "_metrics"].append("recall")
+        export_info[rel_list[rel_flag] + "_metrics"].append(recall)
+        f1 = f1_score(true_list_metrics, pred_list_metrics, average='macro')
+        export_info[rel_list[rel_flag] + "_metrics"].append("f1")
+        export_info[rel_list[rel_flag] + "_metrics"].append(f1)
+        accuracy = accuracy_score(true_list_metrics, pred_list_metrics)
+        export_info[rel_list[rel_flag] + "_metrics"].append("accuracy")
+        export_info[rel_list[rel_flag] + "_metrics"].append(accuracy)
+        hl = hamming_loss(true_list_metrics, pred_list_metrics)
+        export_info[rel_list[rel_flag] + "_metrics"].append("hl")
+        export_info[rel_list[rel_flag] + "_metrics"].append(hl)
+        log_loss_val = log_loss(true_list_metrics, pred_list_metrics)
+        export_info[rel_list[rel_flag] + "_metrics"].append("log_loss_val")
+        export_info[rel_list[rel_flag] + "_metrics"].append(log_loss_val)
+
         # 导出到 csv 文件
-        if not args.restore:
-            time_flag = time.strftime('%Y_%m_%d') + '_' + time.strftime('%H_%M_%S') + '_' + str(results['mrr'])
-        else:
-            time_flag = args.name + '_' + str(results['mrr'])
+        # if not args.restore:
+        #     time_flag = time.strftime('%Y_%m_%d') + '_' + time.strftime('%H_%M_%S') + '_' + str(results['mrr'])
+        # else:
+        time_flag = args.name + '_' + str(results['mrr'])
         pd.DataFrame({
             0: list(export_info["enter"]),
             1: list(export_info["enterid"]),
             2: export_info["pred_" + rel_list[rel_flag]],
-            3: export_info["true_" + rel_list[rel_flag]]
+            3: export_info["true_" + rel_list[rel_flag]],
+            4: export_info[rel_list[rel_flag] + "_metrics"]
         }).to_csv(
             f'{args.csv_dir}/{time_flag}.csv', sep='\t', index=False, header=False
         )
@@ -401,7 +431,8 @@ class Runner(object):
         results = get_combined_results(left_results, right_results)
         self.logger.info('[Epoch {} {}]: MRR: Tail : {:.5f}, Head : {:.5f}, Avg : {:.5f}\n'.format(
             epoch, split, results['left_mrr'], results['right_mrr'], results['mrr']))
-        self.save_csv(sub_total, rel_total, obj_total, target_pred_total, label_total, results, rel_flag=0)
+        if args.restore:
+            self.save_csv(sub_total, rel_total, obj_total, target_pred_total, label_total, results, rel_flag=0)
         return results
 
     def predict(self, split='valid', mode='tail_batch'):

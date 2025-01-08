@@ -192,21 +192,24 @@ class CompGCN_Transformer(CompGCNBase):
         sub_emb, rel_emb, all_ent = self.forward_base(sub, rel, self.hidden_drop, self.feature_drop)
         stk_inp = self.concat(sub_emb, rel_emb)
 
-        # # mask = self.length_to_mask(lengths) == False
-        # # 不使用 mask
-        # mask = None
-        #
+        # 已替换
         # if self.p.T_positional:
-        #     hidden_states = self.position_embedding(stk_inp)
+        #     positions = torch.arange(stk_inp.shape[0], dtype=torch.long, device=self.device).repeat(stk_inp.shape[1], 1)
+        #     pos_embeddings = self.position_embeddings(positions).transpose(1, 0)
+        #     stk_inp = stk_inp + pos_embeddings
         #
-        # x = self.encoder(hidden_states, src_key_padding_mask=mask)
+        # x = self.encoder(stk_inp)
+
+        # mask = self.length_to_mask(lengths) == False
+        # 不使用 mask
+        mask = None
 
         if self.p.T_positional:
-            positions = torch.arange(stk_inp.shape[0], dtype=torch.long, device=self.device).repeat(stk_inp.shape[1], 1)
-            pos_embeddings = self.position_embeddings(positions).transpose(1, 0)
-            stk_inp = stk_inp + pos_embeddings
+            hidden_states = self.position_embedding(stk_inp)
+        else:
+            hidden_states = stk_inp
 
-        x = self.encoder(stk_inp)
+        x = self.encoder(hidden_states, src_key_padding_mask=mask)
 
         if self.p.T_pooling == 'concat':
             x = x.transpose(1, 0).reshape(-1, self.flat_sz)

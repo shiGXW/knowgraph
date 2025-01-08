@@ -584,9 +584,9 @@ if __name__ == '__main__':
 
     """数据集写入train.txt、valid.txt"""
     # 根据划分数据集中的企业 md5 值，将数据集写入train.txt、valid.txt
-    # "enterprise" 企业名不写入数据集，不参与模型训练，以 md5 值作为企业实体
+    # "enterprise",  "enttype"企业名、企业类型不写入数据集，不参与模型训练，以 md5 值作为企业实体
     # list 为文件名，"industry", "enttype", "areacode", "HW", "waste", "material", "product", "HWwaste"
-    train_valid_datas = read_all_txt(excel_path + "all/", ["industry", "enttype", "areacode", "HW", "waste", "material", "product", "HWwaste"])
+    train_valid_datas = read_all_txt(excel_path + "all/", ["industry", "areacode", "HW", "waste", "material", "product", "HWwaste"])
     write_train_txt(train_valid_datas, dataset_part_dict, id_md5_dict)
 
     logging.info("Done!!!")
