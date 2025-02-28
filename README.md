@@ -52,7 +52,7 @@ kill -9 $(pgrep -f './run-notest.py')
 nohup python -u ./run-StarE.py >> ./run-StarE.log 2>&1 &
 kill -9 $(pgrep -f './run-StarE.py')
 # 模型验证
-nohup python -u ./run-notest.py -restore True -name testrun_2024_07_25_09_33_37 > /dev/null 2>&1 &
+nohup python -u ./run-notest.py -restore True -name testrun_2025_01_08_17_23_40 > /dev/null 2>&1 &
 kill -9 $(pgrep -f './run-notest.py')
 # 实体链接
 nohup python -u RawAccdeal-BERTDDD-simple.py >> ./RawAccdeal_BERT_run.log 2>&1 &

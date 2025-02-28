@@ -304,6 +304,7 @@ class Runner(object):
         # 关系为rel_flag的预测，在rel_total中的位置
         rel_index = np.where(rel_total == rel_flag)
         rel_list = ["industry", "areacode", "HW", "waste", "material", "product", "HWwaste"]
+        accuracy_list = [0.001]
         # sub_total, rel_total, obj_total, label_total
         # 头，关系，尾，头与关系对应的全部尾的索引(第二位为 entid )
         # sub_total = [ 5962, 98, 1246, 5063, 6696, ... ]
@@ -339,7 +340,7 @@ class Runner(object):
             export_info["enterid"].add(self.id2ent[sub_total[item]])
             # 预测阈值
             # print(target_pred_total[item])
-            if target_pred_total[item] >= self.p.accuracy_th:
+            if target_pred_total[item] >= self.p.accuracy_th * accuracy_list[rel_flag]:
                 # 存在多个obj
                 if sub_total[item] in pred_industry_total.keys():
                     pred_industry_total[self.id2ent[int(sub_total[item])]].append(self.id2ent[obj_total[item]])
@@ -365,7 +366,7 @@ class Runner(object):
             pred_list = list(set(pred_industry_total.get(item, [])))
             # pred_list转id，用于评估指标
             pred_list_metric_temp = [0 for _ in range(len(self.ent2id))]
-            for item in true_list:
+            for item in pred_list:
                 pred_list_metric_temp[self.ent2id[item]] = 1
             pred_list_metrics.append(pred_list_metric_temp)
             export_info["true_" + rel_list[rel_flag]].append('；'.join(true_list))
@@ -374,13 +375,14 @@ class Runner(object):
         # 多标签分类：计算各项评估指标
         # recision_score：计算精确率；recall_score：计算召回率；f1_score：计算F1分数；accuracy_score：计算准确率
         # hamming_loss：计算汉明损失；log_loss（也称为multilabel_log_loss）：计算多标签对数损失
-        precision = precision_score(true_list_metrics, pred_list_metrics, average='macro')
+        # samples：针对多标签(multi-label)情形
+        precision = precision_score(true_list_metrics, pred_list_metrics, average='samples')
         export_info[rel_list[rel_flag] + "_metrics"].append("precision")
         export_info[rel_list[rel_flag] + "_metrics"].append(precision)
-        recall = recall_score(true_list_metrics, pred_list_metrics, average='macro')
+        recall = recall_score(true_list_metrics, pred_list_metrics, average='samples')
         export_info[rel_list[rel_flag] + "_metrics"].append("recall")
         export_info[rel_list[rel_flag] + "_metrics"].append(recall)
-        f1 = f1_score(true_list_metrics, pred_list_metrics, average='macro')
+        f1 = f1_score(true_list_metrics, pred_list_metrics, average='samples')
         export_info[rel_list[rel_flag] + "_metrics"].append("f1")
         export_info[rel_list[rel_flag] + "_metrics"].append(f1)
         accuracy = accuracy_score(true_list_metrics, pred_list_metrics)
@@ -403,7 +405,7 @@ class Runner(object):
             1: list(export_info["enterid"]),
             2: export_info["pred_" + rel_list[rel_flag]],
             3: export_info["true_" + rel_list[rel_flag]],
-            4: export_info[rel_list[rel_flag] + "_metrics"]
+            4: export_info[rel_list[rel_flag] + "_metrics"] + ["" for _ in range(len(export_info["enter"]))][len(export_info[rel_list[rel_flag] + "_metrics"]):]
         }).to_csv(
             f'{args.csv_dir}/{time_flag}.csv', sep='\t', index=False, header=False
         )
@@ -602,7 +604,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Parser For Arguments',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('-name', default='testrun', help='Set run name for saving/restoring models')
+    parser.add_argument('-name', default='testrun_2024_07_25_09_33_37', help='Set run name for saving/restoring models')
     parser.add_argument('-data', dest='dataset', default='knowgraph/maxDDD/', help='Dataset to use, default: FB15k-237, knowgraph/max/')
     parser.add_argument('-model', dest='model', default='CompGCN', help='Model Name')
     parser.add_argument('-score_func', dest='score_func', default='Transformer', help='Score Function for Link prediction, default: ConvE, Transformer')
@@ -636,7 +638,7 @@ if __name__ == '__main__':
     parser.add_argument('-seed', dest='seed', default=7588, type=int, help='Seed for randomization')
     parser.add_argument('-accuracy_th', type=float, default=0.5, help='预测阈值')
 
-    parser.add_argument('-restore', dest='restore', default=False, type=bool, help='Restore from the previously saved model')
+    parser.add_argument('-restore', dest='restore', default=True, type=bool, help='Restore from the previously saved model')
     parser.add_argument('-bias', dest='bias', action='store_true', help='Whether to use bias in the model')
 
     parser.add_argument('-num_bases', dest='num_bases', default=7, type=int,
