@@ -25,6 +25,8 @@ $ git status
 $ git commit -m "change"
 $ git pull origin master
 $ git push origin master
+$ git pull origin_hub master
+$ git push origin_hub master
 
 # python
 conda activate pytorch
